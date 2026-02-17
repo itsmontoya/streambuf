@@ -81,23 +81,28 @@ AI must not rewrite logic under the guise of documentation updates.
 
 # Pull Request Descriptions
 
-When generating pull request descriptions:
+All pull request descriptions must follow the structure defined in:
 
-* The PR description must always be provided in Markdown.
+`.github/PULL_REQUEST_TEMPLATE.md`
+
+AI agents must:
+
+* Use the exact section structure from the template
+* Preserve checklist items
+* Not remove required fields
+* Not reorder sections unless explicitly instructed
+* Not introduce additional sections unless requested
+
+When generating a pull request description:
+
 * The entire PR description must be wrapped in a fenced Markdown code block.
 * No explanatory text may appear outside the code block.
 * The output must be ready to copy and paste directly into GitHub.
+* The template structure must be preserved.
 
-The PR description should:
+AI must not simplify or compress the template for convenience.
 
-* Clearly explain intent
-* Describe scope
-* Explicitly confirm no production logic was changed (if applicable)
-* Reference relevant files
-* Avoid fluff and marketing language
-* Be structured and concise
-
-If unsure, produce less text — never more.
+If unsure, produce less text — never alter structure.
 
 # Change Discipline
 
