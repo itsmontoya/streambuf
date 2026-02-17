@@ -6,8 +6,6 @@ It allows a single writer to continuously append bytes to a buffer, while any nu
 
 The buffer can be backed by memory or by a file, making it suitable for both lightweight in-memory streaming and durable, disk-backed use cases.
 
----
-
 ## Motivation
 
 Go’s standard library provides excellent primitives for streaming (`io.Reader`, `io.Writer`, `bufio`, channels), but it lacks a native abstraction for:
@@ -28,8 +26,6 @@ This pattern shows up frequently in systems programming, including:
 - Event feeds
 - Streaming ingestion systems
 - Testing and replay of streamed data
-
----
 
 ## Core Concepts
 
@@ -61,8 +57,6 @@ Readers block when no data is available and resume automatically when new data i
 - **File-backed** (using a shared file descriptor)
 
 Both implementations expose the same behavior and API.
-
----
 
 ## Example
 
