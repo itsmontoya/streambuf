@@ -1,6 +1,9 @@
-# streambuf &emsp; ![Coverage]
+# streambuf &emsp; ![Coverage] [![MIT licensed][License Badge]][License URL]
 
 [Coverage]: https://img.shields.io/badge/coverage-100%25-brightgreen
+[License Badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[License URL]: https://github.com/itsmontoya/streambuf/blob/main/LICENSE
+
 
 ![banner](https://github.com/itsmontoya/streambuf/blob/main/banner_1920.webp?raw=true "Streambuf banner")
 
