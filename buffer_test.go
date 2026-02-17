@@ -1,0 +1,80 @@
+package streambuf
+
+import "testing"
+
+func TestBufferWriteAfterClose(t *testing.T) {
+	var b *Buffer
+	b = New()
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close = %v, want nil", err)
+	}
+
+	var (
+		n   int
+		err error
+	)
+	n, err = b.Write([]byte("hello"))
+	if err != ErrIsClosed || n != 0 {
+		t.Fatalf("Write after close = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
+	}
+}
+
+func TestBufferCloseAfterClose(t *testing.T) {
+	var b *Buffer
+	b = New()
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close = %v, want nil", err)
+	}
+
+	if err := b.Close(); err != ErrIsClosed {
+		t.Fatalf("Close second call = %v, want %v", err, ErrIsClosed)
+	}
+}
+
+func TestBufferSignalsWaitersOnWriteAndClose(t *testing.T) {
+	var b *Buffer
+	b = New()
+
+	var first <-chan struct{}
+	first = b.waiter.Wait()
+
+	select {
+	case <-first:
+		t.Fatalf("initial waiter channel should be open")
+	default:
+	}
+
+	if _, err := b.Write([]byte("x")); err != nil {
+		t.Fatalf("Write = %v, want nil", err)
+	}
+
+	select {
+	case <-first:
+	default:
+		t.Fatalf("waiter channel should close after write")
+	}
+
+	var second <-chan struct{}
+	second = b.waiter.Wait()
+	if first == second {
+		t.Fatalf("waiter channel should refresh after write")
+	}
+
+	select {
+	case <-second:
+		t.Fatalf("refreshed waiter channel should be open before close")
+	default:
+	}
+
+	if err := b.Close(); err != nil {
+		t.Fatalf("Close = %v, want nil", err)
+	}
+
+	select {
+	case <-second:
+	default:
+		t.Fatalf("waiter channel should close after buffer close")
+	}
+}
