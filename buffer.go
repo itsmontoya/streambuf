@@ -8,7 +8,7 @@ import (
 // ErrIsClosed is returned when an action is attempted on a closed instance
 var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
-// New constructs a Buffer bound to the provided context.
+// New constructs a new in-memory Buffer.
 func New() (out *Buffer) {
 	var b Buffer
 	b.b = newMemory()
@@ -24,6 +24,7 @@ type Buffer struct {
 	waiter *waiter
 }
 
+// Write appends bytes to the buffer and wakes waiting readers.
 func (b *Buffer) Write(bs []byte) (n int, err error) {
 	if n, err = b.b.Write(bs); err != nil {
 		return
@@ -38,6 +39,7 @@ func (b *Buffer) Reader() (r io.ReadCloser) {
 	return newReader(b)
 }
 
+// Close closes the buffer and signals any waiting readers.
 func (b *Buffer) Close() (err error) {
 	if err = b.b.Close(); err != nil {
 		return
