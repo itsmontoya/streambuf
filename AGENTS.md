@@ -38,7 +38,7 @@ AI may suggest improvements, but must not directly change implementation logic.
 
 # Style Enforcement
 
-When assisting with comments, documentation, or tests, AI agents must follow STYLEGUIDE.md.
+When assisting with comments, documentation, or tests, AI agents must follow `STYLEGUIDE.md`.
 
 This includes:
 
@@ -79,6 +79,26 @@ AI may:
 
 AI must not rewrite logic under the guise of documentation updates.
 
+# Pull Request Descriptions
+
+When generating pull request descriptions:
+
+* The PR description must always be provided in Markdown.
+* The entire PR description must be wrapped in a fenced Markdown code block.
+* No explanatory text may appear outside the code block.
+* The output must be ready to copy and paste directly into GitHub.
+
+The PR description should:
+
+* Clearly explain intent
+* Describe scope
+* Explicitly confirm no production logic was changed (if applicable)
+* Reference relevant files
+* Avoid fluff and marketing language
+* Be structured and concise
+
+If unsure, produce less text — never more.
+
 # Change Discipline
 
 If an AI agent believes logic should change:
@@ -92,7 +112,7 @@ Human maintainers retain full control over all behavioral changes.
 
 This repository prioritizes intentional design and explicit authorship.
 
-AI is a support tool for clarity and testing — not a source of implementation logic.
+AI is a support tool for clarity and testing, not a source of implementation logic.
 
 When in doubt, do less.
 Preserve human intent.
