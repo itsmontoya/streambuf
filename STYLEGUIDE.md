@@ -43,9 +43,15 @@ store.go
 
 ### Preferred
 
-```
+```go
 // service.go
 
+// Service coordinates request handling and persistence.
+type Service struct {
+    store Store
+}
+
+// NewService constructs a Service with the provided Store.
 func NewService(store Store) (s *Service) {
     s = &Service{
         store: store,
@@ -53,10 +59,7 @@ func NewService(store Store) (s *Service) {
     return s
 }
 
-type Service struct {
-    store Store
-}
-
+// Handle processes the incoming request.
 func (s *Service) Handle(...) (...) {
     ...
 }
@@ -106,7 +109,7 @@ We prefer explicit variable declarations.
 
 ### Preferred
 
-```
+```go
 var (
     count int
     user  User
@@ -121,7 +124,7 @@ Use := only when it meaningfully improves clarity in tight scopes.
 
 ### Acceptable
 
-```
+```go
 if v, ok := m[key]; ok {
     return v, nil
 }
@@ -133,7 +136,7 @@ Do not redeclare variables in nested scopes.
 
 Avoid:
 
-```
+```go
 var err error
 err = doThing()
 
@@ -160,7 +163,7 @@ Use them especially for:
 
 Preferred:
 
-```
+```go
 func Parse(input string) (result Result, err error) {
     ...
     return result, err
@@ -179,7 +182,7 @@ Even with named returns, never use naked return.
 
 Avoid:
 
-```
+```go
 func Parse(input string) (result Result, err error) {
     if input == "" {
         err = errors.New("empty")
@@ -191,7 +194,7 @@ func Parse(input string) (result Result, err error) {
 
 Prefer:
 
-```
+```go
 func Parse(input string) (result Result, err error) {
     if input == "" {
         err = errors.New("empty")
@@ -216,7 +219,7 @@ Guidelines:
 
 Reduce nesting and keep control flow flat.
 
-```
+```go
 if err != nil {
     return resp, err
 }
@@ -236,9 +239,11 @@ Do not split methods across files. Extract types instead.
 * Handle errors immediately.
 * Add context when returning errors.
 
-  if err != nil {
-  return out, fmt.Errorf("load user %q: %w", id, err)
-  }
+```go
+if err != nil {
+    return out, fmt.Errorf("load user %q: %w", id, err)
+}
+```
 
 Avoid swallowing errors.
 
@@ -257,9 +262,40 @@ Avoid swallowing errors.
 
 # Comments
 
+* All exported types, functions, methods, and interfaces must have GoDoc comments.
+* Comments must begin with the name of the exported symbol.
 * Explain why, not what.
-* Public types and functions must have GoDoc comments.
-* Avoid redundant commentary.
+* Keep comments concise. Err on the side of brevity.
+* Avoid restating obvious code.
+* Private functions should only be commented when the intent is non-obvious.
+* Comments should rarely exceed a few short lines unless documenting complex behavior.
+
+### GoDoc Example
+
+```go
+// Service coordinates request handling and persistence.
+type Service struct {
+    store Store
+}
+
+// NewService constructs a Service with the provided Store.
+func NewService(store Store) (s *Service) {
+    s = &Service{
+        store: store,
+    }
+    return s
+}
+```
+
+### Avoid
+
+```go
+// Handle handles the request.
+func (s *Service) Handle(...) { ... }
+
+// i increments by 1.
+i++
+```
 
 # Tests
 
@@ -267,12 +303,15 @@ Avoid swallowing errors.
 * Keep setup explicit.
 * Avoid clever test abstractions.
 
-  func TestParse(t *testing.T) {
-  type tc struct {
-  name  string
-  input string
-  ok    bool
-  }
+```go
+func TestParse(t *testing.T) {
+    type tc struct {
+        name  string
+        input string
+        ok    bool
+    }
+}
+```
 
 # PR Checklist
 
@@ -287,4 +326,6 @@ Before opening a PR:
 * [ ] Prefer var over :=
 * [ ] No shadowing
 * [ ] Errors include context
+* [ ] Exported symbols have GoDoc comments
 * [ ] Tests cover behavior
+
