@@ -1,4 +1,8 @@
-# streambuf
+# streambuf &emsp; [![Coverage]][actions]
+
+[Coverage]: https://img.shields.io/badge/coverage-100%25-brightgreen
+
+![banner](https://github.com/itsmontoya/streambuf/blob/main/banner_1920.webp?raw=true "Streambuf banner")
 
 `streambuf` is a Go library that provides an **append-only buffer with multiple independent readers**.
 
