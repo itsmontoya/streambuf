@@ -8,13 +8,23 @@ import (
 // ErrIsClosed is returned when an action is attempted on a closed instance
 var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
-// New constructs a new in-memory Buffer.
-func New() (out *Buffer) {
+// New constructs a new file Buffer.
+func New(filepath string) (out *Buffer, err error) {
+	var b Buffer
+	if b.b, err = newFile(filepath); err != nil {
+		return
+	}
+
+	b.waiter = newWaiter()
+	return &b, nil
+}
+
+// NewMemory constructs a new in-memory Buffer.
+func NewMemory() (out *Buffer) {
 	var b Buffer
 	b.b = newMemory()
 	b.waiter = newWaiter()
-	out = &b
-	return out
+	return &b
 }
 
 // Buffer is a concurrent-safe byte buffer with reader support.
