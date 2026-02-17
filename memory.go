@@ -34,7 +34,7 @@ func (m *memory) Write(bs []byte) (n int, err error) {
 	return len(bs), nil
 }
 
-func (m *memory) ReadAtOffset(in []byte, index int) (n int, err error) {
+func (m *memory) ReadAt(in []byte, index int) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
 	switch {

@@ -25,7 +25,7 @@ type reader struct {
 
 func (r *reader) Read(in []byte) (n int, err error) {
 	for {
-		n, err = r.b.b.ReadAtOffset(in, r.index)
+		n, err = r.b.b.ReadAt(in, r.index)
 		switch {
 		case n > 0:
 			r.index += n
