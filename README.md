@@ -66,6 +66,19 @@ Readers block when no data is available and resume automatically when new data i
 
 Both implementations expose the same behavior and API.
 
+## AI Usage and Authorship
+
+This project is intentionally **human-authored** for all logic.
+
+To be explicit:
+
+- AI does **not** write or modify non-test code in this repository.
+- AI does **not** make architectural or behavioral decisions.
+- AI may assist with documentation, comments, and test scaffolding only.
+- All implementation logic is written and reviewed by human maintainers.
+
+These boundaries are enforced in `AGENTS.md` and are part of this repository's contribution discipline.
+
 ## Example
 
 ```go
@@ -81,3 +94,10 @@ go func() {
 
 io.Copy(os.Stdout, r1)
 io.Copy(os.Stdout, r2)
+```
+
+## Contributors
+
+- Human maintainers: library design, implementation, and behavior decisions.
+- ChatGPT Codex: documentation, test coverage support, and comments.
+- Google Gemini: README artwork generation.
