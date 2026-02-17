@@ -1,9 +1,10 @@
-# streambuf &emsp; ![Coverage] [![MIT licensed][License Badge]][License URL]
+# streambuf &emsp; ![Coverage] [![Go Report Card][Report Card Badge]][Report Card URL] [![MIT licensed][License Badge]][License URL]
 
 [Coverage]: https://img.shields.io/badge/coverage-100%25-brightgreen
 [License Badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [License URL]: https://github.com/itsmontoya/streambuf/blob/main/LICENSE
-
+[Report Card Badge]: https://goreportcard.com/badge/github.com/itsmontoya/streambuf
+[Report Card URL]: https://goreportcard.com/report/github.com/itsmontoya/streambuf
 
 ![banner](https://github.com/itsmontoya/streambuf/blob/main/banner_1920.webp?raw=true "Streambuf banner")
 
