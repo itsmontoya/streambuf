@@ -6,6 +6,7 @@ import (
 
 var _ io.ReadCloser = &reader{}
 
+// newReader constructs a reader bound to a Buffer.
 func newReader(b *Buffer) (out *reader) {
 	var r reader
 	r.b = b
@@ -14,6 +15,7 @@ func newReader(b *Buffer) (out *reader) {
 	return &r
 }
 
+// reader streams bytes from a Buffer while tracking read position.
 type reader struct {
 	b *Buffer
 
@@ -23,6 +25,8 @@ type reader struct {
 	closer *waiter
 }
 
+// Read copies available bytes into in and blocks until data is written,
+// the buffer is closed, or the reader is closed.
 func (r *reader) Read(in []byte) (n int, err error) {
 	for {
 		n, err = r.b.b.ReadAt(in, r.index)
@@ -46,6 +50,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 	}
 }
 
+// Close closes the reader and unblocks any pending Read calls.
 func (r *reader) Close() (err error) {
 	return r.closer.Close()
 }

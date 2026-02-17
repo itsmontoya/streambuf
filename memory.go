@@ -7,13 +7,14 @@ import (
 
 var _ backend = &memory{}
 
+// newMemory constructs the in-memory backend used by Buffer.
 func newMemory() (out *memory) {
 	var m memory
 	m.bs = make([]byte, 0, 1024)
 	return &m
 }
 
-// Buffer is a concurrent-safe byte buffer with reader support.
+// memory is the backend that stores bytes and close state.
 type memory struct {
 	mux sync.RWMutex
 
@@ -22,7 +23,7 @@ type memory struct {
 	closed bool
 }
 
-// Write appends bytes to the buffer and wakes any waiting readers.
+// Write appends bytes to the backend unless it is closed.
 func (m *memory) Write(bs []byte) (n int, err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -34,6 +35,7 @@ func (m *memory) Write(bs []byte) (n int, err error) {
 	return len(bs), nil
 }
 
+// ReadAt copies bytes from index into in.
 func (m *memory) ReadAt(in []byte, index int) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
@@ -48,6 +50,7 @@ func (m *memory) ReadAt(in []byte, index int) (n int, err error) {
 	}
 }
 
+// Close marks the backend as closed.
 func (m *memory) Close() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
