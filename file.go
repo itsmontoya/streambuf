@@ -36,18 +36,22 @@ func (f *file) Write(bs []byte) (n int, err error) {
 		return 0, ErrIsClosed
 	}
 
-	return f.Write(bs)
+	return f.w.Write(bs)
 }
 
 // ReadAt copies bytes from index into in.
 func (f *file) ReadAt(in []byte, index int64) (n int, err error) {
 	f.mux.RLock()
 	defer f.mux.RUnlock()
-	if f.closed {
+	n, err = f.r.ReadAt(in, index)
+	switch {
+	case n > 0:
+		return n, nil
+	case f.closed:
 		return 0, ErrIsClosed
+	default:
+		return 0, err
 	}
-
-	return f.r.ReadAt(in, index)
 }
 
 // Close marks the backend as closed.
@@ -65,9 +69,9 @@ func (f *file) Close() (err error) {
 		errs = append(errs, err)
 	}
 
-	if err = f.r.Close(); err != nil {
-		errs = append(errs, err)
-	}
+	//if err = f.r.Close(); err != nil {
+	//	errs = append(errs, err)
+	//}
 
 	return errors.Join(errs...)
 }
