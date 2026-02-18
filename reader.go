@@ -1,10 +1,16 @@
 package streambuf
 
 import (
+	"errors"
 	"io"
 )
 
-var _ io.ReadCloser = &reader{}
+var (
+	ErrSeekEndNotSupported = errors.New("seek end is not currently supported")
+	ErrNegativeIndex       = errors.New("invalid index, cannot be less than 0")
+)
+
+var _ io.ReadSeekCloser = &reader{}
 
 // newReader constructs a reader bound to a Buffer.
 func newReader(b *Buffer) (out *reader) {
@@ -48,6 +54,24 @@ func (r *reader) Read(in []byte) (n int, err error) {
 		}
 
 	}
+}
+
+func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
+	switch whence {
+	case io.SeekStart:
+		r.index = offset
+	case io.SeekCurrent:
+		r.index += offset
+	case io.SeekEnd:
+		return 0, ErrSeekEndNotSupported
+	}
+
+	if r.index < 0 {
+		r.index = 0
+		err = ErrNegativeIndex
+	}
+
+	return r.index, err
 }
 
 // Close closes the reader and unblocks any pending Read calls.
