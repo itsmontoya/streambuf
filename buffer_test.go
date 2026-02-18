@@ -1,6 +1,11 @@
 package streambuf
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+)
 
 func TestBufferWriteAfterClose(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
@@ -86,4 +91,58 @@ func TestBackendCloseReaderAfterCloseReader(t *testing.T) {
 			t.Fatalf("CloseReader second call = %v, want %v", err, ErrIsClosed)
 		}
 	})
+}
+
+func TestBufferCloseAndWaitWhenWaiterAlreadyClosed(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		if err := b.waiter.Close(); err != nil {
+			t.Fatalf("waiter.Close = %v, want nil", err)
+		}
+
+		if err := b.CloseAndWait(nil); err != ErrIsClosed {
+			t.Fatalf("CloseAndWait with closed waiter = %v, want %v", err, ErrIsClosed)
+		}
+	})
+}
+
+func TestNewWhenFileOpenFails(t *testing.T) {
+	var (
+		b   *Buffer
+		err error
+	)
+
+	path := filepath.Join(t.TempDir(), "missing", "streambuf.test")
+	if b, err = New(path); err == nil {
+		t.Fatalf("New(%q) = (%v, nil), want non-nil error", path, b)
+	}
+
+	if b != nil {
+		t.Fatalf("New(%q) buffer = %v, want nil", path, b)
+	}
+}
+
+func TestNewWhenFileReadOpenFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission semantics differ on windows")
+	}
+
+	path := filepath.Join(t.TempDir(), "streambuf.test")
+
+	var err error
+	if err = os.WriteFile(path, []byte("seed"), 0200); err != nil {
+		t.Fatalf("WriteFile(%q) = %v, want nil", path, err)
+	}
+
+	if err = os.Chmod(path, 0200); err != nil {
+		t.Fatalf("Chmod(%q) = %v, want nil", path, err)
+	}
+
+	var b *Buffer
+	if b, err = New(path); err == nil {
+		t.Fatalf("New(%q) = (%v, nil), want non-nil error", path, b)
+	}
+
+	if b != nil {
+		t.Fatalf("New(%q) buffer = %v, want nil", path, b)
+	}
 }
