@@ -75,3 +75,15 @@ func TestBufferSignalsWaitersOnWriteAndClose(t *testing.T) {
 		}
 	})
 }
+
+func TestBackendCloseReaderAfterCloseReader(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		if err := b.b.CloseReader(); err != nil {
+			t.Fatalf("CloseReader = %v, want nil", err)
+		}
+
+		if err := b.b.CloseReader(); err != ErrIsClosed {
+			t.Fatalf("CloseReader second call = %v, want %v", err, ErrIsClosed)
+		}
+	})
+}
