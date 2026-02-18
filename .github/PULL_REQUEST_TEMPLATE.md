@@ -30,7 +30,6 @@ If behavior changed, describe precisely:
 ## Testing
 - [ ] go fmt ./...
 - [ ] go vet ./...
-- [ ] staticcheck ./... (if applicable)
 - [ ] go test ./... -race
 - [ ] Tests added / updated (if needed)
 - [ ] No production logic modified (if docs/tests only)
