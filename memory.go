@@ -51,7 +51,7 @@ func (m *memory) ReadAt(in []byte, index int64) (n int, err error) {
 	}
 }
 
-// Close marks the backend as closed.
+// CloseWriter marks the memory backend writer as closed.
 func (m *memory) CloseWriter() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -63,7 +63,7 @@ func (m *memory) CloseWriter() (err error) {
 	return nil
 }
 
-// Close marks the backend as closed.
+// CloseReader marks the memory backend reader as closed and releases memory.
 func (m *memory) CloseReader() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()

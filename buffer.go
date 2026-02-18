@@ -55,12 +55,14 @@ func (b *Buffer) Reader() (r io.ReadSeekCloser) {
 	return newReader(b)
 }
 
-// Close closes the buffer and signals any waiting readers.
+// Close closes the writer side of the buffer and signals waiting readers.
+// It does not wait for readers to call Close.
 func (b *Buffer) Close() (err error) {
 	return b.CloseAndWait(nil)
 }
 
-// CloseAndWait closes the buffer and signals any waiting readers and waits until they are closed
+// CloseAndWait closes the writer side of the buffer and signals waiting readers.
+// If cancel is non-nil, it waits for readers to close until cancel is closed.
 func (b *Buffer) CloseAndWait(cancel <-chan struct{}) (err error) {
 	if err = b.b.CloseWriter(); err != nil {
 		return

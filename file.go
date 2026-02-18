@@ -54,7 +54,7 @@ func (f *file) ReadAt(in []byte, index int64) (n int, err error) {
 	}
 }
 
-// CloseWriter makes the backend as closed and closes the underlying writer file
+// CloseWriter marks the file backend writer as closed and closes its file handle.
 func (f *file) CloseWriter() (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
@@ -67,7 +67,7 @@ func (f *file) CloseWriter() (err error) {
 	return f.w.Close()
 }
 
-// CloseReader closes the underlying reader file
+// CloseReader marks the file backend reader as closed and closes its file handle.
 func (f *file) CloseReader() (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
