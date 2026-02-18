@@ -20,14 +20,15 @@ type memory struct {
 
 	bs []byte
 
-	closed bool
+	writerClosed bool
+	readerClosed bool
 }
 
 // Write appends bytes to the backend unless it is closed.
 func (m *memory) Write(bs []byte) (n int, err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	if m.closed {
+	if m.writerClosed {
 		return 0, ErrIsClosed
 	}
 
@@ -43,7 +44,7 @@ func (m *memory) ReadAt(in []byte, index int64) (n int, err error) {
 	case index < int64(len(m.bs)):
 		n = copy(in, m.bs[index:])
 		return n, nil
-	case m.closed:
+	case m.writerClosed:
 		return 0, ErrIsClosed
 	default:
 		return 0, io.EOF
@@ -51,13 +52,26 @@ func (m *memory) ReadAt(in []byte, index int64) (n int, err error) {
 }
 
 // Close marks the backend as closed.
-func (m *memory) Close() (err error) {
+func (m *memory) CloseWriter() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	if m.closed {
+	if m.writerClosed {
 		return ErrIsClosed
 	}
 
-	m.closed = true
+	m.writerClosed = true
+	return nil
+}
+
+// Close marks the backend as closed.
+func (m *memory) CloseReader() (err error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.readerClosed {
+		return ErrIsClosed
+	}
+
+	m.readerClosed = true
+	m.bs = nil
 	return nil
 }
