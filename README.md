@@ -39,7 +39,7 @@ This pattern shows up frequently in systems programming, including:
 
 ## Examples
 
-### File-backed buffer with independent readers (`New(filepath)`)
+Quick start example:
 
 ```go
 package main
@@ -49,6 +49,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/itsmontoya/streambuf"
 )
@@ -63,6 +64,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer os.Remove("./stream.log")
+	defer buf.Close()
 
 	fast := buf.Reader()
 	defer fast.Close()
@@ -70,12 +72,19 @@ func main() {
 	slow := buf.Reader()
 	defer slow.Close()
 
-	if _, err = buf.Write([]byte("hello ")); err != nil {
-		log.Fatal(err)
-	}
+	var fastBS, slowBS []byte
+	go func() {
+		fastBS, _ = io.ReadAll(fast)
+		defer fast.Close()
+	}()
 
-	fastFirst := make([]byte, len("hello "))
-	if _, err = io.ReadFull(fast, fastFirst); err != nil {
+	go func() {
+		time.Sleep(time.Second)
+		slowBS, _ = io.ReadAll(slow)
+		defer slow.Close()
+	}()
+
+	if _, err = buf.Write([]byte("hello ")); err != nil {
 		log.Fatal(err)
 	}
 
@@ -83,121 +92,27 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fastRest := make([]byte, len("file backend"))
-	if _, err = io.ReadFull(fast, fastRest); err != nil {
-		log.Fatal(err)
-	}
-
-	slowAll := make([]byte, len("hello file backend"))
-	if _, err = io.ReadFull(slow, slowAll); err != nil {
-		log.Fatal(err)
-	}
-
 	if err = buf.Close(); err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("fast reader: %s%s\n", string(fastFirst), string(fastRest))
-	fmt.Printf("slow reader: %s\n", string(slowAll))
+	// Fast reader has all contents
+	fmt.Printf("fast reader: %s\n", string(fastBS))
+	// Slow reader is missing contents due to Close ending readers immediately
+	fmt.Printf("slow reader: %s\n", string(slowBS))
 }
 ```
 
-### In-memory buffer with late-joining reader (`NewMemory()`)
+Runnable examples live in `examples/`:
 
-```go
-package main
+- `examples/basic/main.go`: demonstrates immediate `Close()` behavior.
+- `examples/basic_with_wait/main.go`: demonstrates `CloseAndWait(cancel)` with timeout-based cancellation.
 
-import (
-	"fmt"
-	"io"
-	"log"
+Run them from the repository root:
 
-	"github.com/itsmontoya/streambuf"
-)
-
-func main() {
-	var err error
-	buf := streambuf.NewMemory()
-	early := buf.Reader()
-	defer early.Close()
-
-	if _, err = buf.Write([]byte("frame-1|")); err != nil {
-		log.Fatal(err)
-	}
-
-	// This reader joins after data already exists but still starts at index 0.
-	late := buf.Reader()
-	defer late.Close()
-
-	if _, err = buf.Write([]byte("frame-2")); err != nil {
-		log.Fatal(err)
-	}
-
-	earlyAll := make([]byte, len("frame-1|frame-2"))
-	if _, err = io.ReadFull(early, earlyAll); err != nil {
-		log.Fatal(err)
-	}
-
-	lateAll := make([]byte, len("frame-1|frame-2"))
-	if _, err = io.ReadFull(late, lateAll); err != nil {
-		log.Fatal(err)
-	}
-
-	if err = buf.Close(); err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("early reader: %s\n", string(earlyAll))
-	fmt.Printf("late reader:  %s\n", string(lateAll))
-}
-```
-
-### Graceful close with timeout (`CloseAndWait(cancel)`)
-
-```go
-package main
-
-import (
-	"io"
-	"log"
-	"time"
-
-	"github.com/itsmontoya/streambuf"
-)
-
-func main() {
-	var err error
-	buf := streambuf.NewMemory()
-	r := buf.Reader()
-
-	if _, err = buf.Write([]byte("payload")); err != nil {
-		log.Fatal(err)
-	}
-
-	// Let this reader drain and then close itself.
-	readerDone := make(chan struct{})
-	go func() {
-		defer close(readerDone)
-		in := make([]byte, len("payload"))
-		if _, readErr := io.ReadFull(r, in); readErr != nil {
-			return
-		}
-		_ = r.Close()
-	}()
-
-	// Cancel waiting after 2 seconds if readers have not closed.
-	cancel := make(chan struct{})
-	go func() {
-		time.Sleep(2 * time.Second)
-		close(cancel)
-	}()
-
-	if err = buf.CloseAndWait(cancel); err != nil {
-		log.Fatal(err)
-	}
-
-	<-readerDone
-}
+```bash
+go run ./examples/basic
+go run ./examples/basic_with_wait
 ```
 
 ## Core Concepts
