@@ -1,5 +1,7 @@
-# streambuf &emsp; ![Coverage] [![Go Report Card][Report Card Badge]][Report Card URL] [![MIT licensed][License Badge]][License URL]
+# streambuf &emsp; [![GoDoc][GoDoc Badge]][GoDoc URL] ![Coverage] [![Go Report Card][Report Card Badge]][Report Card URL] [![MIT licensed][License Badge]][License URL]
 
+[GoDoc Badge]: https://godoc.org/github.com/itsmontoya/streambuf?status.svg
+[GoDoc URL]: https://godoc.org/github.com/itsmontoya/streambuf
 [Coverage]: https://img.shields.io/badge/coverage-100%25-brightgreen
 [License Badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [License URL]: https://github.com/itsmontoya/streambuf/blob/main/LICENSE
@@ -34,6 +36,121 @@ This pattern shows up frequently in systems programming, including:
 - Event feeds
 - Streaming ingestion systems
 - Testing and replay of streamed data
+
+## Examples
+
+### File-backed buffer with independent readers (`New(filepath)`)
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"os"
+
+	"github.com/itsmontoya/streambuf"
+)
+
+func main() {
+	var (
+		buf *streambuf.Buffer
+		err error
+	)
+
+	if buf, err = streambuf.New("./stream.log"); err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove("./stream.log")
+
+	fast := buf.Reader()
+	defer fast.Close()
+
+	slow := buf.Reader()
+	defer slow.Close()
+
+	if _, err = buf.Write([]byte("hello ")); err != nil {
+		log.Fatal(err)
+	}
+
+	fastFirst := make([]byte, len("hello "))
+	if _, err = io.ReadFull(fast, fastFirst); err != nil {
+		log.Fatal(err)
+	}
+
+	if _, err = buf.Write([]byte("file backend")); err != nil {
+		log.Fatal(err)
+	}
+
+	if err = buf.Close(); err != nil {
+		log.Fatal(err)
+	}
+
+	fastRest := make([]byte, len("file backend"))
+	if _, err = io.ReadFull(fast, fastRest); err != nil {
+		log.Fatal(err)
+	}
+
+	slowAll := make([]byte, len("hello file backend"))
+	if _, err = io.ReadFull(slow, slowAll); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("fast reader: %s%s\n", string(fastFirst), string(fastRest))
+	fmt.Printf("slow reader: %s\n", string(slowAll))
+}
+```
+
+### In-memory buffer with late-joining reader (`NewMemory()`)
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+
+	"github.com/itsmontoya/streambuf"
+)
+
+func main() {
+	var err error
+	buf := streambuf.NewMemory()
+	early := buf.Reader()
+	defer early.Close()
+
+	if _, err = buf.Write([]byte("frame-1|")); err != nil {
+		log.Fatal(err)
+	}
+
+	// This reader joins after data already exists but still starts at index 0.
+	late := buf.Reader()
+	defer late.Close()
+
+	if _, err = buf.Write([]byte("frame-2")); err != nil {
+		log.Fatal(err)
+	}
+
+	if err = buf.Close(); err != nil {
+		log.Fatal(err)
+	}
+
+	earlyAll := make([]byte, len("frame-1|frame-2"))
+	if _, err = io.ReadFull(early, earlyAll); err != nil {
+		log.Fatal(err)
+	}
+
+	lateAll := make([]byte, len("frame-1|frame-2"))
+	if _, err = io.ReadFull(late, lateAll); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("early reader: %s\n", string(earlyAll))
+	fmt.Printf("late reader:  %s\n", string(lateAll))
+}
+```
 
 ## Core Concepts
 
@@ -78,75 +195,6 @@ To be explicit:
 - All implementation logic is written and reviewed by human maintainers.
 
 These boundaries are enforced in `AGENTS.md` and are part of this repository's contribution discipline.
-
-## Examples
-
-### File-backed buffer (`New(filepath)`)
-
-```go
-package main
-
-import (
-	"io"
-	"log"
-	"os"
-
-	"github.com/itsmontoya/streambuf"
-)
-
-func main() {
-	var (
-		buf *streambuf.Buffer
-		err error
-	)
-
-	if buf, err = streambuf.New("./stream.log"); err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		_ = buf.Close()
-	}()
-
-	var r io.ReadCloser
-	r = buf.Reader()
-	defer func() {
-		_ = r.Close()
-	}()
-
-	_, _ = buf.Write([]byte("hello file backend\n"))
-	_, _ = io.Copy(os.Stdout, r)
-}
-```
-
-### In-memory buffer (`NewMemory()`)
-
-```go
-package main
-
-import (
-	"io"
-	"os"
-
-	"github.com/itsmontoya/streambuf"
-)
-
-func main() {
-	var buf *streambuf.Buffer
-	buf = streambuf.NewMemory()
-	defer func() {
-		_ = buf.Close()
-	}()
-
-	var r io.ReadCloser
-	r = buf.Reader()
-	defer func() {
-		_ = r.Close()
-	}()
-
-	_, _ = buf.Write([]byte("hello memory backend\n"))
-	_, _ = io.Copy(os.Stdout, r)
-}
-```
 
 ## Contributors
 
