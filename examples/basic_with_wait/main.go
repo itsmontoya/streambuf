@@ -49,7 +49,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 	if err = buf.CloseAndWait(ctx.Done()); err != nil {
 		log.Fatal(err)
 	}
