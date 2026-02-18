@@ -19,7 +19,7 @@ func newReader(b *Buffer) (out *reader) {
 type reader struct {
 	b *Buffer
 
-	index int
+	index int64
 
 	waiter *waiter
 	closer *waiter
@@ -32,7 +32,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 		n, err = r.b.b.ReadAt(in, r.index)
 		switch {
 		case n > 0:
-			r.index += n
+			r.index += int64(n)
 			return n, err
 		case err == nil:
 		case err == io.EOF:

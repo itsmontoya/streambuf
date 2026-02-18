@@ -36,11 +36,11 @@ func (m *memory) Write(bs []byte) (n int, err error) {
 }
 
 // ReadAt copies bytes from index into in.
-func (m *memory) ReadAt(in []byte, index int) (n int, err error) {
+func (m *memory) ReadAt(in []byte, index int64) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
 	switch {
-	case index < len(m.bs):
+	case index < int64(len(m.bs)):
 		n = copy(in, m.bs[index:])
 		return n, nil
 	case m.closed:
