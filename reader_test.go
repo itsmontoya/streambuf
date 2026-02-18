@@ -4,6 +4,7 @@ import (
 	"io"
 	"testing"
 	"testing/synctest"
+	"time"
 )
 
 func TestReaderReadExistingData(t *testing.T) {
@@ -81,7 +82,6 @@ func TestReaderWaitsForData(t *testing.T) {
 
 			<-started
 			_, _ = b.Write([]byte("late"))
-			_ = b.Close()
 			synctest.Wait()
 
 			if err != nil || n != len("late") {
@@ -89,6 +89,16 @@ func TestReaderWaitsForData(t *testing.T) {
 			}
 			if got := string(buf[:n]); got != "late" {
 				t.Fatalf("Read data = %q, want %q", got, "late")
+			}
+
+			if closeErr := r.Close(); closeErr != nil {
+				t.Fatalf("Close = %v, want nil", closeErr)
+			}
+
+			var cancel chan struct{}
+			cancel = make(chan struct{})
+			if closeErr := b.CloseAndWait(cancel); closeErr != nil {
+				t.Fatalf("CloseAndWait = %v, want nil", closeErr)
 			}
 		})
 	})
@@ -137,9 +147,16 @@ func TestReaderMultipleReadersReceiveAllData(t *testing.T) {
 
 		_, _ = b.Write([]byte("hello "))
 		_, _ = b.Write([]byte("world"))
-		if err := b.Close(); err != nil {
-			t.Fatalf("Close = %v, want nil", err)
-		}
+
+		var cancel chan struct{}
+		cancel = make(chan struct{})
+		defer close(cancel)
+
+		var closeDone chan error
+		closeDone = make(chan error, 1)
+		go func() {
+			closeDone <- b.CloseAndWait(cancel)
+		}()
 
 		assertRead(t, r1, len("hello world"), "hello world")
 		assertRead(t, r2, len("hello world"), "hello world")
@@ -163,6 +180,22 @@ func TestReaderMultipleReadersReceiveAllData(t *testing.T) {
 		n2, err2 = r2.Read(buf)
 		if err2 != ErrIsClosed || n2 != 0 {
 			t.Fatalf("r2 terminal read = (%d, %v), want (0, %v)", n2, err2, ErrIsClosed)
+		}
+
+		if err := r1.Close(); err != nil {
+			t.Fatalf("r1 Close = %v, want nil", err)
+		}
+		if err := r2.Close(); err != nil {
+			t.Fatalf("r2 Close = %v, want nil", err)
+		}
+
+		select {
+		case err := <-closeDone:
+			if err != nil {
+				t.Fatalf("CloseAndWait = %v, want nil", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("CloseAndWait did not return")
 		}
 	})
 }
@@ -214,9 +247,15 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 
 		assertRead(t, r, 3, "abc")
 
-		if err := b.Close(); err != nil {
-			t.Fatalf("Close = %v, want nil", err)
-		}
+		var cancel chan struct{}
+		cancel = make(chan struct{})
+		defer close(cancel)
+
+		var closeDone chan error
+		closeDone = make(chan error, 1)
+		go func() {
+			closeDone <- b.CloseAndWait(cancel)
+		}()
 
 		assertRead(t, r, 16, "def")
 
@@ -230,6 +269,75 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 		n, err = r.Read(buf)
 		if err != ErrIsClosed || n != 0 {
 			t.Fatalf("terminal read = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
+		}
+
+		if closeErr := r.Close(); closeErr != nil {
+			t.Fatalf("Close = %v, want nil", closeErr)
+		}
+
+		select {
+		case closeErr := <-closeDone:
+			if closeErr != nil {
+				t.Fatalf("CloseAndWait = %v, want nil", closeErr)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("CloseAndWait did not return")
+		}
+	})
+}
+
+func TestBufferCloseIsImmediateWithOpenReader(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		var r io.ReadCloser
+		r = b.Reader()
+
+		var closeDone chan error
+		closeDone = make(chan error, 1)
+		go func() {
+			closeDone <- b.Close()
+		}()
+
+		select {
+		case err := <-closeDone:
+			if err != nil {
+				t.Fatalf("Close = %v, want nil", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("Close did not return")
+		}
+
+		if err := r.Close(); err != nil {
+			t.Fatalf("Close reader = %v, want nil", err)
+		}
+	})
+}
+
+func TestReaderUnreadDataDroppedAfterImmediateClose(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadCloser
+		r = b.Reader()
+		assertRead(t, r, 3, "abc")
+
+		if err := b.Close(); err != nil {
+			t.Fatalf("Close = %v, want nil", err)
+		}
+
+		var buf []byte
+		buf = make([]byte, 8)
+
+		var (
+			n   int
+			err error
+		)
+		n, err = r.Read(buf)
+		if err != ErrIsClosed || n != 0 {
+			t.Fatalf("Read after immediate close = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
+		}
+
+		if closeErr := r.Close(); closeErr != nil {
+			t.Fatalf("Close reader = %v, want nil", closeErr)
 		}
 	})
 }
