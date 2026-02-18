@@ -3,6 +3,7 @@ package streambuf
 import (
 	"errors"
 	"io"
+	"sync"
 )
 
 // ErrIsClosed is returned when an action is attempted on a closed instance
@@ -32,6 +33,8 @@ type Buffer struct {
 	b backend
 
 	waiter *waiter
+
+	wg sync.WaitGroup
 }
 
 // Write appends bytes to the buffer and wakes waiting readers.
@@ -48,14 +51,49 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 // Each reader tracks its own read offset and supports seeking relative to
 // the start or current position.
 func (b *Buffer) Reader() (r io.ReadSeekCloser) {
+	b.wg.Add(1)
 	return newReader(b)
 }
 
-// Close closes the buffer and signals any waiting readers.
+// Close closes the writer side of the buffer and signals waiting readers.
+// It does not wait for readers to call Close.
 func (b *Buffer) Close() (err error) {
-	if err = b.b.Close(); err != nil {
+	return b.CloseAndWait(nil)
+}
+
+// CloseAndWait closes the writer side of the buffer and signals waiting readers.
+// If cancel is non-nil, it waits for readers to close until cancel is closed.
+func (b *Buffer) CloseAndWait(cancel <-chan struct{}) (err error) {
+	if err = b.b.CloseWriter(); err != nil {
 		return
 	}
 
-	return b.waiter.Close()
+	if err = b.waiter.Close(); err != nil {
+		return
+	}
+
+	b.waitUntilDone(cancel)
+
+	return b.b.CloseReader()
+}
+
+func (b *Buffer) waitUntilDone(cancel <-chan struct{}) {
+	if cancel == nil {
+		return
+	}
+
+	select {
+	case <-cancel:
+	case <-b.waitForReaders():
+	}
+}
+
+func (b *Buffer) waitForReaders() (out <-chan struct{}) {
+	done := make(chan struct{})
+	go func() {
+		b.wg.Wait()
+		done <- struct{}{}
+	}()
+
+	return done
 }

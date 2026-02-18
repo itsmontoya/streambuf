@@ -1,7 +1,6 @@
 package streambuf
 
 import (
-	"errors"
 	"os"
 	"sync"
 )
@@ -25,14 +24,15 @@ type file struct {
 	w *os.File
 	r *os.File
 
-	closed bool
+	writerClosed bool
+	readerClosed bool
 }
 
 // Write appends bytes to the backend unless it is closed.
 func (f *file) Write(bs []byte) (n int, err error) {
 	f.mux.RLock()
 	defer f.mux.RUnlock()
-	if f.closed {
+	if f.writerClosed {
 		return 0, ErrIsClosed
 	}
 
@@ -47,31 +47,35 @@ func (f *file) ReadAt(in []byte, index int64) (n int, err error) {
 	switch {
 	case n > 0:
 		return n, nil
-	case f.closed:
+	case f.writerClosed:
 		return 0, ErrIsClosed
 	default:
 		return 0, err
 	}
 }
 
-// Close marks the backend as closed.
-func (f *file) Close() (err error) {
+// CloseWriter marks the file backend writer as closed and closes its file handle.
+func (f *file) CloseWriter() (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
-	if f.closed {
+	if f.writerClosed {
 		return ErrIsClosed
 	}
 
-	f.closed = true
+	f.writerClosed = true
 
-	var errs []error
-	if err = f.w.Close(); err != nil {
-		errs = append(errs, err)
+	return f.w.Close()
+}
+
+// CloseReader marks the file backend reader as closed and closes its file handle.
+func (f *file) CloseReader() (err error) {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	if f.readerClosed {
+		return ErrIsClosed
 	}
 
-	//if err = f.r.Close(); err != nil {
-	//	errs = append(errs, err)
-	//}
+	f.readerClosed = true
 
-	return errors.Join(errs...)
+	return f.r.Close()
 }

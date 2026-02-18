@@ -20,7 +20,6 @@ var _ io.ReadSeekCloser = &reader{}
 func newReader(b *Buffer) (out *reader) {
 	var r reader
 	r.b = b
-	r.waiter = newWaiter()
 	r.closer = newWaiter()
 	return &r
 }
@@ -31,7 +30,6 @@ type reader struct {
 
 	index int64
 
-	waiter *waiter
 	closer *waiter
 }
 
@@ -85,5 +83,10 @@ func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
 
 // Close closes the reader and unblocks any pending Read calls.
 func (r *reader) Close() (err error) {
-	return r.closer.Close()
+	if err = r.closer.Close(); err != nil {
+		return
+	}
+
+	r.b.wg.Done()
+	return nil
 }
