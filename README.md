@@ -83,10 +83,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err = buf.Close(); err != nil {
-		log.Fatal(err)
-	}
-
 	fastRest := make([]byte, len("file backend"))
 	if _, err = io.ReadFull(fast, fastRest); err != nil {
 		log.Fatal(err)
@@ -94,6 +90,10 @@ func main() {
 
 	slowAll := make([]byte, len("hello file backend"))
 	if _, err = io.ReadFull(slow, slowAll); err != nil {
+		log.Fatal(err)
+	}
+
+	if err = buf.Close(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -133,10 +133,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err = buf.Close(); err != nil {
-		log.Fatal(err)
-	}
-
 	earlyAll := make([]byte, len("frame-1|frame-2"))
 	if _, err = io.ReadFull(early, earlyAll); err != nil {
 		log.Fatal(err)
@@ -147,8 +143,60 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err = buf.Close(); err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Printf("early reader: %s\n", string(earlyAll))
 	fmt.Printf("late reader:  %s\n", string(lateAll))
+}
+```
+
+### Graceful close with timeout (`CloseAndWait(cancel)`)
+
+```go
+package main
+
+import (
+	"io"
+	"log"
+	"time"
+
+	"github.com/itsmontoya/streambuf"
+)
+
+func main() {
+	var err error
+	buf := streambuf.NewMemory()
+	r := buf.Reader()
+
+	if _, err = buf.Write([]byte("payload")); err != nil {
+		log.Fatal(err)
+	}
+
+	// Let this reader drain and then close itself.
+	readerDone := make(chan struct{})
+	go func() {
+		defer close(readerDone)
+		in := make([]byte, len("payload"))
+		if _, readErr := io.ReadFull(r, in); readErr != nil {
+			return
+		}
+		_ = r.Close()
+	}()
+
+	// Cancel waiting after 2 seconds if readers have not closed.
+	cancel := make(chan struct{})
+	go func() {
+		time.Sleep(2 * time.Second)
+		close(cancel)
+	}()
+
+	if err = buf.CloseAndWait(cancel); err != nil {
+		log.Fatal(err)
+	}
+
+	<-readerDone
 }
 ```
 
@@ -173,6 +221,13 @@ Readers may:
 ### Blocking reads
 
 Readers block when no data is available and resume automatically when new data is appended.
+
+### Shutdown behavior
+
+- `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
+- `CloseAndWait(cancel)` closes writes and waits for readers only when `cancel` is non-nil and not yet closed.
+- `cancel` can be a timeout channel you close after a deadline to bound how long shutdown waits.
+- To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and a cancel channel).
 
 ### Pluggable storage
 
