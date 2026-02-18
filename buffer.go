@@ -44,8 +44,10 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 	return
 }
 
-// Reader returns a new ReadCloser that streams data from the buffer.
-func (b *Buffer) Reader() (r io.ReadCloser) {
+// Reader returns a new ReadSeekCloser that streams data from the buffer.
+// Each reader tracks its own read offset and supports seeking relative to
+// the start or current position.
+func (b *Buffer) Reader() (r io.ReadSeekCloser) {
 	return newReader(b)
 }
 

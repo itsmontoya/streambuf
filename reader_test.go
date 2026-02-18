@@ -234,6 +234,70 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 	})
 }
 
+func TestReaderSeekStart(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadSeekCloser
+		r = b.Reader()
+
+		assertRead(t, r, 2, "ab")
+		assertSeek(t, r, 1, io.SeekStart, 1, nil)
+		assertRead(t, r, 3, "bcd")
+	})
+}
+
+func TestReaderSeekCurrent(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadSeekCloser
+		r = b.Reader()
+
+		assertRead(t, r, 3, "abc")
+		assertSeek(t, r, -2, io.SeekCurrent, 1, nil)
+		assertRead(t, r, 2, "bc")
+	})
+}
+
+func TestReaderSeekCurrentClampsNegativeIndex(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadSeekCloser
+		r = b.Reader()
+
+		assertRead(t, r, 1, "a")
+		assertSeek(t, r, -10, io.SeekCurrent, 0, ErrNegativeIndex)
+		assertRead(t, r, 2, "ab")
+	})
+}
+
+func TestReaderSeekEndNotSupported(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadSeekCloser
+		r = b.Reader()
+
+		assertSeek(t, r, 0, io.SeekEnd, 0, ErrSeekEndNotSupported)
+		assertRead(t, r, 2, "ab")
+	})
+}
+
+func assertSeek(t *testing.T, r io.Seeker, offset int64, whence int, wantPos int64, wantErr error) {
+	t.Helper()
+
+	var (
+		pos int64
+		err error
+	)
+	pos, err = r.Seek(offset, whence)
+	if pos != wantPos || err != wantErr {
+		t.Fatalf("Seek(%d, %d) = (%d, %v), want (%d, %v)", offset, whence, pos, err, wantPos, wantErr)
+	}
+}
+
 func assertRead(t *testing.T, r io.Reader, bufSize int, want string) {
 	t.Helper()
 

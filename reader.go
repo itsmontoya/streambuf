@@ -1,10 +1,20 @@
 package streambuf
 
 import (
+	"errors"
 	"io"
 )
 
-var _ io.ReadCloser = &reader{}
+var (
+	// ErrSeekEndNotSupported is returned when seeking relative to the end.
+	// Reader-backed seeks currently support only SeekStart and SeekCurrent.
+	ErrSeekEndNotSupported = errors.New("seek end is not currently supported")
+	// ErrNegativeIndex is returned when a seek would move before byte index 0.
+	// The reader position is clamped to 0 in this case.
+	ErrNegativeIndex = errors.New("invalid index, cannot be less than 0")
+)
+
+var _ io.ReadSeekCloser = &reader{}
 
 // newReader constructs a reader bound to a Buffer.
 func newReader(b *Buffer) (out *reader) {
@@ -48,6 +58,29 @@ func (r *reader) Read(in []byte) (n int, err error) {
 		}
 
 	}
+}
+
+// Seek updates the reader offset using whence semantics.
+// SeekStart sets the absolute position to offset, SeekCurrent moves relative
+// to the current position, and SeekEnd returns ErrSeekEndNotSupported.
+// If the computed position is negative, the position is clamped to 0 and
+// ErrNegativeIndex is returned.
+func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
+	switch whence {
+	case io.SeekStart:
+		r.index = offset
+	case io.SeekCurrent:
+		r.index += offset
+	case io.SeekEnd:
+		return 0, ErrSeekEndNotSupported
+	}
+
+	if r.index < 0 {
+		r.index = 0
+		err = ErrNegativeIndex
+	}
+
+	return r.index, err
 }
 
 // Close closes the reader and unblocks any pending Read calls.
