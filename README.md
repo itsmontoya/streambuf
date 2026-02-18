@@ -79,21 +79,73 @@ To be explicit:
 
 These boundaries are enforced in `AGENTS.md` and are part of this repository's contribution discipline.
 
-## Example
+## Examples
+
+### File-backed buffer (`New(filepath)`)
 
 ```go
-buf := streambuf.NewMemory()
+package main
 
-r1 := buf.NewReader()
-r2 := buf.NewReader()
+import (
+	"io"
+	"log"
+	"os"
 
-go func() {
-    buf.Append([]byte("hello\n"))
-    buf.Append([]byte("world\n"))
-}()
+	"github.com/itsmontoya/streambuf"
+)
 
-io.Copy(os.Stdout, r1)
-io.Copy(os.Stdout, r2)
+func main() {
+	var (
+		buf *streambuf.Buffer
+		err error
+	)
+
+	if buf, err = streambuf.New("./stream.log"); err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		_ = buf.Close()
+	}()
+
+	var r io.ReadCloser
+	r = buf.Reader()
+	defer func() {
+		_ = r.Close()
+	}()
+
+	_, _ = buf.Write([]byte("hello file backend\n"))
+	_, _ = io.Copy(os.Stdout, r)
+}
+```
+
+### In-memory buffer (`NewMemory()`)
+
+```go
+package main
+
+import (
+	"io"
+	"os"
+
+	"github.com/itsmontoya/streambuf"
+)
+
+func main() {
+	var buf *streambuf.Buffer
+	buf = streambuf.NewMemory()
+	defer func() {
+		_ = buf.Close()
+	}()
+
+	var r io.ReadCloser
+	r = buf.Reader()
+	defer func() {
+		_ = r.Close()
+	}()
+
+	_, _ = buf.Write([]byte("hello memory backend\n"))
+	_, _ = io.Copy(os.Stdout, r)
+}
 ```
 
 ## Contributors
