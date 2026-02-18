@@ -1,5 +1,7 @@
-# streambuf &emsp; ![Coverage] [![Go Report Card][Report Card Badge]][Report Card URL] [![MIT licensed][License Badge]][License URL]
+# streambuf &emsp; [![GoDoc][GoDoc Badge]][GoDoc URL] ![Coverage] [![Go Report Card][Report Card Badge]][Report Card URL] [![MIT licensed][License Badge]][License URL]
 
+[GoDoc Badge]: https://godoc.org/github.com/itsmontoya/streambuf?status.svg
+[GoDoc URL]: https://godoc.org/github.com/itsmontoya/streambuf
 [Coverage]: https://img.shields.io/badge/coverage-100%25-brightgreen
 [License Badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [License URL]: https://github.com/itsmontoya/streambuf/blob/main/LICENSE
