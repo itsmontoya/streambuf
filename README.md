@@ -103,7 +103,7 @@ func main() {
 }
 ```
 
-Runnable examples live in `examples/`:
+Additional runnable examples live in `examples/`:
 
 - `examples/basic/main.go`: demonstrates immediate `Close()` behavior.
 - `examples/basic_with_wait/main.go`: demonstrates `CloseAndWait(cancel)` with timeout-based cancellation.
