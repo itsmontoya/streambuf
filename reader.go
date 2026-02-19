@@ -2,7 +2,6 @@ package streambuf
 
 import (
 	"errors"
-	"fmt"
 	"io"
 )
 
@@ -10,6 +9,8 @@ var (
 	// ErrSeekEndNotSupported is returned when seeking relative to the end.
 	// Reader-backed seeks currently support only SeekStart and SeekCurrent.
 	ErrSeekEndNotSupported = errors.New("seek end is not currently supported")
+	// ErrInvalidWhence is returned when Seek receives an unsupported whence value.
+	ErrInvalidWhence = errors.New("invalid seek whence")
 	// ErrNegativeIndex is returned when a seek would move before byte index 0.
 	// The reader position is clamped to 0 in this case.
 	ErrNegativeIndex = errors.New("invalid index, cannot be less than 0")
@@ -73,7 +74,7 @@ func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
 	case io.SeekEnd:
 		return 0, ErrSeekEndNotSupported
 	default:
-		return 0, fmt.Errorf("invalid seek whence %d is not supported", whence)
+		return 0, ErrInvalidWhence
 	}
 
 	if r.index < 0 {
