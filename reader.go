@@ -40,6 +40,10 @@ type reader struct {
 // When no bytes are read, it returns ErrIsClosed after either the buffer
 // closes or the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
+	if len(in) == 0 {
+		return 0, nil
+	}
+
 	for {
 		n, err = r.b.b.ReadAt(in, r.index)
 		switch {
