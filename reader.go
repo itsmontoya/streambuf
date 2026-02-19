@@ -2,6 +2,7 @@ package streambuf
 
 import (
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -71,6 +72,8 @@ func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
 		r.index += offset
 	case io.SeekEnd:
 		return 0, ErrSeekEndNotSupported
+	default:
+		return 0, fmt.Errorf("invalid seek whence %d is not supported", whence)
 	}
 
 	if r.index < 0 {
