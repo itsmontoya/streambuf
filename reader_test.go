@@ -393,6 +393,26 @@ func TestReaderSeekEndNotSupported(t *testing.T) {
 	})
 }
 
+func TestReaderSeekInvalidWhence(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		_, _ = b.Write([]byte("abcdef"))
+
+		var r io.ReadSeekCloser
+		r = b.Reader()
+
+		var (
+			pos int64
+			err error
+		)
+
+		if pos, err = r.Seek(0, -1); err == nil || pos != 0 {
+			t.Fatalf("Seek(%d, %d) = (%d, %v), want (0, non-nil error)", 0, -1, pos, err)
+		}
+
+		assertRead(t, r, 2, "ab")
+	})
+}
+
 func assertSeek(t *testing.T, r io.Seeker, offset int64, whence int, wantPos int64, wantErr error) {
 	t.Helper()
 
