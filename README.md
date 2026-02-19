@@ -8,7 +8,7 @@
 [Report Card Badge]: https://goreportcard.com/badge/github.com/itsmontoya/streambuf
 [Report Card URL]: https://goreportcard.com/report/github.com/itsmontoya/streambuf
 
-![banner](https://github.com/itsmontoya/streambuf/blob/main/banner_1920.webp?raw=true "Streambuf banner")
+![banner](https://private-user-images.githubusercontent.com/928954/552350309-8f0049df-b5ee-4d62-a4e2-8f35eed64aab.webp?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzE1MzIwMjIsIm5iZiI6MTc3MTUzMTcyMiwicGF0aCI6Ii85Mjg5NTQvNTUyMzUwMzA5LThmMDA0OWRmLWI1ZWUtNGQ2Mi1hNGUyLThmMzVlZWQ2NGFhYi53ZWJwP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI2MDIxOSUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjAyMTlUMjAwODQyWiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9YWVhY2YxYjJhZTFiNzgxNWIwM2M2OTMwNTc5MzM5ZTcxYTBjYmE4ODU5ODEwZmI0Y2Y1MzQ5YjYwZjdjMTM4MyZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.SRxabX8XVFw2E-FtStL-_Lu-wIHIxwj2SeJXSpvlhcc&raw=true "Streambuf banner")
 
 `streambuf` is a Go library that provides an **append-only buffer with multiple independent readers**.
 
@@ -175,3 +175,5 @@ These boundaries are enforced in `AGENTS.md` and are part of this repository's c
 - Human maintainers: library design, implementation, and behavior decisions.
 - ChatGPT Codex: documentation, test coverage support, and comments.
 - Google Gemini: README artwork generation.
+
+![banner](https://private-user-images.githubusercontent.com/928954/552352225-3f9c15ed-bab6-431a-9027-089101e62708.webp?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzE1MzE4MzYsIm5iZiI6MTc3MTUzMTUzNiwicGF0aCI6Ii85Mjg5NTQvNTUyMzUyMjI1LTNmOWMxNWVkLWJhYjYtNDMxYS05MDI3LTA4OTEwMWU2MjcwOC53ZWJwP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI2MDIxOSUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjAyMTlUMjAwNTM2WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9ZmMxZmIzNTM2YWRiOWUwODc4ODlkODEwNGZiNjZmOGM1ZDc1YmZkYjI5YjUyMmQ1MmJkMGZiMGE4MThhMjIwOSZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.9EItodXXX29EzbVk8oa7XuJBTDcgK7evpGYs6PXQ58I&raw=true "Streambuf footer")
