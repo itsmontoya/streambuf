@@ -80,6 +80,9 @@ func (b *Buffer) Close() (err error) {
 // It waits for readers to close until ctx is canceled.
 // Once called successfully, future Reader and Write calls return ErrIsClosed.
 // ctx must be non-nil.
+// If ctx is canceled before readers close, this call still returns and the
+// buffer remains closed; readers should still be closed to complete internal
+// wait cleanup.
 func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 	b.mux.Lock()
 	defer b.mux.Unlock()
