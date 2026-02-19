@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -196,4 +197,62 @@ func TestBufferCloseAndWaitCancelDoesNotLeakWaitForReadersGoroutine(t *testing.T
 	var after int
 	after = runtime.NumGoroutine()
 	t.Fatalf("goroutines after cancel-path close = %d, before = %d, delta = %d", after, before, after-before)
+}
+
+func TestBufferConcurrentWriteAndCloseAndWait(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		const (
+			writerCount     = 16
+			writesPerWriter = 64
+		)
+
+		var start chan struct{}
+		start = make(chan struct{})
+
+		var wg sync.WaitGroup
+
+		var errs chan error
+		errs = make(chan error, writerCount*writesPerWriter+1)
+
+		var i int
+		for i = 0; i < writerCount; i++ {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+				<-start
+
+				var j int
+				for j = 0; j < writesPerWriter; j++ {
+					if _, err := b.Write([]byte("x")); err != nil && err != ErrIsClosed {
+						errs <- err
+						return
+					}
+				}
+			}()
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+
+			var cancel context.CancelFunc
+			var ctx context.Context
+			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			errs <- b.CloseAndWait(ctx)
+		}()
+
+		close(start)
+		wg.Wait()
+		close(errs)
+
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("concurrent Write/CloseAndWait error = %v, want nil", err)
+			}
+		}
+	})
 }
