@@ -8,7 +8,7 @@
 [Report Card Badge]: https://goreportcard.com/badge/github.com/itsmontoya/streambuf
 [Report Card URL]: https://goreportcard.com/report/github.com/itsmontoya/streambuf
 
-![banner](https://private-user-images.githubusercontent.com/928954/552350309-8f0049df-b5ee-4d62-a4e2-8f35eed64aab.webp?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzE1MzIwMjIsIm5iZiI6MTc3MTUzMTcyMiwicGF0aCI6Ii85Mjg5NTQvNTUyMzUwMzA5LThmMDA0OWRmLWI1ZWUtNGQ2Mi1hNGUyLThmMzVlZWQ2NGFhYi53ZWJwP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI2MDIxOSUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjAyMTlUMjAwODQyWiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9YWVhY2YxYjJhZTFiNzgxNWIwM2M2OTMwNTc5MzM5ZTcxYTBjYmE4ODU5ODEwZmI0Y2Y1MzQ5YjYwZjdjMTM4MyZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.SRxabX8XVFw2E-FtStL-_Lu-wIHIxwj2SeJXSpvlhcc&raw=true "Streambuf banner")
+![banner](https://res.cloudinary.com/dryepxxoy/image/upload/v1771535319/streambuf_banner_with_name_1920_xvev2l.webp "Streambuf banner")
 
 `streambuf` is a Go library that provides an **append-only buffer with multiple independent readers**.
 
@@ -177,4 +177,4 @@ These boundaries are enforced in `AGENTS.md` and are part of this repository's c
 - ChatGPT Codex: documentation, test coverage support, and comments.
 - Google Gemini: README artwork generation.
 
-![banner](https://private-user-images.githubusercontent.com/928954/552352225-3f9c15ed-bab6-431a-9027-089101e62708.webp?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzE1MzIxNjMsIm5iZiI6MTc3MTUzMTg2MywicGF0aCI6Ii85Mjg5NTQvNTUyMzUyMjI1LTNmOWMxNWVkLWJhYjYtNDMxYS05MDI3LTA4OTEwMWU2MjcwOC53ZWJwP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI2MDIxOSUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjAyMTlUMjAxMTAzWiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9YTg4ZDJmYzZmMmQyZWQ5YzczNjM1YzUxMmU3OTQzMDUxMDQwZTEyNmE0YzIxMTgwOTM1NTFhZGQ4NzdmOWIwOCZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QifQ.HYNy5Q7dIcklIgvqF0p9oFHG95J1TH03zRyJH6FLKjU&raw=true "Streambuf footer")
+![banner](https://res.cloudinary.com/dryepxxoy/image/upload/v1771535291/streambuf_footer_1920_qhttyv.webp "Streambuf footer")
