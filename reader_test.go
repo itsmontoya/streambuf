@@ -1,6 +1,7 @@
 package streambuf
 
 import (
+	"context"
 	"io"
 	"testing"
 	"testing/synctest"
@@ -95,9 +96,7 @@ func TestReaderWaitsForData(t *testing.T) {
 				t.Fatalf("Close = %v, want nil", closeErr)
 			}
 
-			var cancel chan struct{}
-			cancel = make(chan struct{})
-			if closeErr := b.CloseAndWait(cancel); closeErr != nil {
+			if closeErr := b.CloseAndWait(context.Background()); closeErr != nil {
 				t.Fatalf("CloseAndWait = %v, want nil", closeErr)
 			}
 		})
@@ -148,14 +147,15 @@ func TestReaderMultipleReadersReceiveAllData(t *testing.T) {
 		_, _ = b.Write([]byte("hello "))
 		_, _ = b.Write([]byte("world"))
 
-		var cancel chan struct{}
-		cancel = make(chan struct{})
-		defer close(cancel)
+		var cancel context.CancelFunc
+		var ctx context.Context
+		ctx, cancel = context.WithCancel(context.Background())
+		defer cancel()
 
 		var closeDone chan error
 		closeDone = make(chan error, 1)
 		go func() {
-			closeDone <- b.CloseAndWait(cancel)
+			closeDone <- b.CloseAndWait(ctx)
 		}()
 
 		assertRead(t, r1, len("hello world"), "hello world")
@@ -247,14 +247,15 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 
 		assertRead(t, r, 3, "abc")
 
-		var cancel chan struct{}
-		cancel = make(chan struct{})
-		defer close(cancel)
+		var cancel context.CancelFunc
+		var ctx context.Context
+		ctx, cancel = context.WithCancel(context.Background())
+		defer cancel()
 
 		var closeDone chan error
 		closeDone = make(chan error, 1)
 		go func() {
-			closeDone <- b.CloseAndWait(cancel)
+			closeDone <- b.CloseAndWait(ctx)
 		}()
 
 		assertRead(t, r, 16, "def")
