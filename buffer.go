@@ -1,6 +1,7 @@
 package streambuf
 
 import (
+	"context"
 	"errors"
 	"io"
 	"sync"
@@ -58,12 +59,13 @@ func (b *Buffer) Reader() (r io.ReadSeekCloser) {
 // Close closes the writer side of the buffer and signals waiting readers.
 // It does not wait for readers to call Close.
 func (b *Buffer) Close() (err error) {
-	return b.CloseAndWait(nil)
+	return b.CloseAndWait(expiredContext)
 }
 
 // CloseAndWait closes the writer side of the buffer and signals waiting readers.
-// If cancel is non-nil, it waits for readers to close until cancel is closed.
-func (b *Buffer) CloseAndWait(cancel <-chan struct{}) (err error) {
+// It waits for readers to close until ctx is canceled.
+// ctx must be non-nil.
+func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 	if err = b.b.CloseWriter(); err != nil {
 		return
 	}
@@ -72,18 +74,14 @@ func (b *Buffer) CloseAndWait(cancel <-chan struct{}) (err error) {
 		return
 	}
 
-	b.waitUntilDone(cancel)
+	b.waitUntilDone(ctx)
 
 	return b.b.CloseReader()
 }
 
-func (b *Buffer) waitUntilDone(cancel <-chan struct{}) {
-	if cancel == nil {
-		return
-	}
-
+func (b *Buffer) waitUntilDone(ctx context.Context) {
 	select {
-	case <-cancel:
+	case <-ctx.Done():
 	case <-b.waitForReaders():
 	}
 }
