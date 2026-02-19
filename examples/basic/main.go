@@ -20,21 +20,20 @@ func main() {
 		log.Fatal(err)
 	}
 	defer os.Remove("./stream.log")
-	defer buf.Close()
 
 	var fastBS, slowBS []byte
 	fast := buf.Reader()
 	slow := buf.Reader()
 
 	go func() {
-		fastBS, _ = io.ReadAll(fast)
 		defer fast.Close()
+		fastBS, _ = io.ReadAll(fast)
 	}()
 
 	go func() {
+		defer slow.Close()
 		time.Sleep(time.Second)
 		slowBS, _ = io.ReadAll(slow)
-		defer slow.Close()
 	}()
 
 	if _, err = buf.Write([]byte("hello file backend")); err != nil {

@@ -21,7 +21,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer os.Remove("./stream.log")
-	defer buf.Close()
 
 	var fastBS, slowBS []byte
 	fast := buf.Reader()
