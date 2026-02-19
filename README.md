@@ -145,6 +145,7 @@ Readers block when no data is available and resume automatically when new data i
 - `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
 - `CloseAndWait(ctx)` closes writes and waits for readers until `ctx` is canceled.
 - `ctx` can be a timeout/deadline context to bound how long shutdown waits.
+- Terminal reads after either buffer close or reader close return `ErrIsClosed`.
 - To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and context cancellation).
 
 ### Pluggable storage
