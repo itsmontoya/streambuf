@@ -31,15 +31,19 @@ func NewMemory() (out *Buffer) {
 
 // Buffer is a concurrent-safe byte buffer with reader support.
 type Buffer struct {
-	b backend
+	mux sync.RWMutex
+	b   backend
+	wg  sync.WaitGroup
 
 	waiter *waiter
 
-	wg sync.WaitGroup
+	closed bool
 }
 
 // Write appends bytes to the buffer and wakes waiting readers.
 func (b *Buffer) Write(bs []byte) (n int, err error) {
+	b.mux.RLock()
+	defer b.mux.RUnlock()
 	if n, err = b.b.Write(bs); err != nil {
 		return
 	}
@@ -54,9 +58,15 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 // Reader returns a new ReadSeekCloser that streams data from the buffer.
 // Each reader tracks its own read offset and supports seeking relative to
 // the start or current position.
-func (b *Buffer) Reader() (r io.ReadSeekCloser) {
+func (b *Buffer) Reader() (r io.ReadSeekCloser, err error) {
+	b.mux.RLock()
+	defer b.mux.RUnlock()
+	if b.closed {
+		return nil, ErrIsClosed
+	}
+
 	b.wg.Add(1)
-	return newReader(b)
+	return newReader(b), nil
 }
 
 // Close closes the writer side of the buffer and signals waiting readers.
@@ -69,6 +79,14 @@ func (b *Buffer) Close() (err error) {
 // It waits for readers to close until ctx is canceled.
 // ctx must be non-nil.
 func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+	if b.closed {
+		return ErrIsClosed
+	}
+
+	b.closed = true
+
 	if err = b.b.CloseWriter(); err != nil {
 		return
 	}
