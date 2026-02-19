@@ -1,6 +1,7 @@
 package streambuf
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -101,7 +102,7 @@ func TestBufferCloseAndWaitWhenWaiterAlreadyClosed(t *testing.T) {
 			t.Fatalf("waiter.Close = %v, want nil", err)
 		}
 
-		if err := b.CloseAndWait(nil); err != ErrIsClosed {
+		if err := b.CloseAndWait(context.Background()); err != ErrIsClosed {
 			t.Fatalf("CloseAndWait with closed waiter = %v, want %v", err, ErrIsClosed)
 		}
 	})
@@ -161,11 +162,12 @@ func TestBufferCloseAndWaitCancelDoesNotLeakWaitForReadersGoroutine(t *testing.T
 		var r io.ReadCloser
 		r = b.Reader()
 
-		var cancel chan struct{}
-		cancel = make(chan struct{})
-		close(cancel)
+		var cancel context.CancelFunc
+		var ctx context.Context
+		ctx, cancel = context.WithCancel(context.Background())
+		cancel()
 
-		if err := b.CloseAndWait(cancel); err != nil {
+		if err := b.CloseAndWait(ctx); err != nil {
 			t.Fatalf("CloseAndWait = %v, want nil", err)
 		}
 
