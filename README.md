@@ -45,6 +45,7 @@ Quick start example:
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -65,31 +66,42 @@ func main() {
 	}
 	defer os.Remove("./stream.log")
 
-	var fastBS, slowBS []byte
-	fast := buf.Reader()
-	slow := buf.Reader()
+	var fast io.ReadCloser
+	if fast, err = buf.Reader(); err != nil {
+		log.Fatal(err)
+	}
+
+	var slow io.ReadCloser
+	if slow, err = buf.Reader(); err != nil {
+		log.Fatal(err)
+	}
+
+	var fastBS []byte
 	go func() {
-		defer fast.Close()
 		fastBS, _ = io.ReadAll(fast)
+		defer fast.Close()
 	}()
 
+	var slowBS []byte
 	go func() {
-		defer slow.Close()
 		time.Sleep(time.Second)
 		slowBS, _ = io.ReadAll(slow)
+		defer slow.Close()
 	}()
 
 	if _, err = buf.Write([]byte("hello file backend")); err != nil {
 		log.Fatal(err)
 	}
 
-	if err = buf.Close(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	if err = buf.CloseAndWait(ctx); err != nil {
 		log.Fatal(err)
 	}
 
 	// Fast reader has all contents
 	fmt.Printf("fast reader: %s\n", string(fastBS))
-	// Slow reader is missing contents due to Close ending readers immediately
+	// Slow reader has all contents
 	fmt.Printf("slow reader: %s\n", string(slowBS))
 }
 ```
