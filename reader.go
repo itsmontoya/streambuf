@@ -37,6 +37,7 @@ type reader struct {
 
 // Read copies available bytes into in and blocks until data is written,
 // the buffer is closed, or the reader is closed.
+// A zero-length read returns (0, nil) immediately.
 // When no bytes are read, it returns ErrIsClosed after either the buffer
 // closes or the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
