@@ -121,8 +121,8 @@ func TestReaderCloseUnblocks(t *testing.T) {
 			}
 			synctest.Wait()
 
-			if err != io.EOF || n != 0 {
-				t.Fatalf("Read after close = (%d, %v), want (0, io.EOF)", n, err)
+			if err != ErrIsClosed || n != 0 {
+				t.Fatalf("Read after close = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
 			}
 		})
 	})
@@ -224,8 +224,8 @@ func TestReaderReadAfterClose(t *testing.T) {
 			err error
 		)
 		n, err = r.Read(buf)
-		if err != io.EOF || n != 0 {
-			t.Fatalf("Read after close = (%d, %v), want (0, io.EOF)", n, err)
+		if err != ErrIsClosed || n != 0 {
+			t.Fatalf("Read after close = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
 		}
 	})
 }
