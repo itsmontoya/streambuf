@@ -1,10 +1,12 @@
 package streambuf
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestBufferWriteAfterClose(t *testing.T) {
@@ -145,4 +147,47 @@ func TestNewWhenFileReadOpenFails(t *testing.T) {
 	if b != nil {
 		t.Fatalf("New(%q) buffer = %v, want nil", path, b)
 	}
+}
+
+func TestBufferCloseAndWaitCancelDoesNotLeakWaitForReadersGoroutine(t *testing.T) {
+	var before int
+	before = runtime.NumGoroutine()
+
+	var i int
+	for i = 0; i < 64; i++ {
+		var b *Buffer
+		b = NewMemory()
+
+		var r io.ReadCloser
+		r = b.Reader()
+
+		var cancel chan struct{}
+		cancel = make(chan struct{})
+		close(cancel)
+
+		if err := b.CloseAndWait(cancel); err != nil {
+			t.Fatalf("CloseAndWait = %v, want nil", err)
+		}
+
+		if err := r.Close(); err != nil {
+			t.Fatalf("reader Close = %v, want nil", err)
+		}
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		runtime.GC()
+
+		var after int
+		after = runtime.NumGoroutine()
+		if after <= before+8 {
+			return
+		}
+
+		time.Sleep(time.Millisecond * 10)
+	}
+
+	var after int
+	after = runtime.NumGoroutine()
+	t.Fatalf("goroutines after cancel-path close = %d, before = %d, delta = %d", after, before, after-before)
 }
