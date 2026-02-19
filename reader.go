@@ -53,7 +53,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 
 		select {
 		case <-r.closer.Wait():
-			return 0, io.EOF
+			return 0, ErrIsClosed
 		case <-r.b.waiter.Wait():
 		}
 
