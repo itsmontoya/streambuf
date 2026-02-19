@@ -14,7 +14,7 @@ func TestReaderReadExistingData(t *testing.T) {
 		_, _ = b.Write([]byte(" world"))
 
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertRead(t, r, 2, "he")
 		assertRead(t, r, 16, "llo world")
@@ -43,19 +43,11 @@ func TestReaderReturnsErrIsClosedWhenBufferClosedAndEmpty(t *testing.T) {
 			t.Fatalf("Close = %v, want nil", err)
 		}
 
-		var r io.ReadCloser
-		r = b.Reader()
-
-		var buf []byte
-		buf = make([]byte, 1)
-
-		var (
-			n   int
-			err error
-		)
-		n, err = r.Read(buf)
-		if err != ErrIsClosed || n != 0 {
-			t.Fatalf("Read = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
+		var r io.ReadSeekCloser
+		var err error
+		r, err = b.Reader()
+		if err != ErrIsClosed || r != nil {
+			t.Fatalf("Reader() = (%v, %v), want (nil, %v)", r, err, ErrIsClosed)
 		}
 	})
 }
@@ -64,7 +56,7 @@ func TestReaderWaitsForData(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		synctest.Test(t, func(t *testing.T) {
 			var r io.ReadCloser
-			r = b.Reader()
+			r = mustReader(t, b)
 
 			var buf []byte
 			buf = make([]byte, 8)
@@ -107,7 +99,7 @@ func TestReaderCloseUnblocks(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		synctest.Test(t, func(t *testing.T) {
 			var r io.ReadCloser
-			r = b.Reader()
+			r = mustReader(t, b)
 
 			var (
 				n   int
@@ -139,10 +131,10 @@ func TestReaderCloseUnblocks(t *testing.T) {
 func TestReaderMultipleReadersReceiveAllData(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var r1 io.ReadCloser
-		r1 = b.Reader()
+		r1 = mustReader(t, b)
 
 		var r2 io.ReadCloser
-		r2 = b.Reader()
+		r2 = mustReader(t, b)
 
 		_, _ = b.Write([]byte("hello "))
 		_, _ = b.Write([]byte("world"))
@@ -203,7 +195,7 @@ func TestReaderMultipleReadersReceiveAllData(t *testing.T) {
 func TestReaderCloseIdempotent(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		if err := r.Close(); err != nil {
 			t.Fatalf("Close = %v, want nil", err)
@@ -218,7 +210,7 @@ func TestReaderCloseIdempotent(t *testing.T) {
 func TestReaderReadAfterClose(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		if err := r.Close(); err != nil {
 			t.Fatalf("Close = %v, want nil", err)
@@ -243,7 +235,7 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertRead(t, r, 3, "abc")
 
@@ -290,7 +282,7 @@ func TestReaderReadsRemainderAfterBufferClose(t *testing.T) {
 func TestBufferCloseIsImmediateWithOpenReader(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		var closeDone chan error
 		closeDone = make(chan error, 1)
@@ -318,7 +310,7 @@ func TestReaderUnreadDataDroppedAfterImmediateClose(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 		assertRead(t, r, 3, "abc")
 
 		if err := b.Close(); err != nil {
@@ -348,7 +340,7 @@ func TestReaderSeekStart(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadSeekCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertRead(t, r, 2, "ab")
 		assertSeek(t, r, 1, io.SeekStart, 1, nil)
@@ -361,7 +353,7 @@ func TestReaderSeekCurrent(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadSeekCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertRead(t, r, 3, "abc")
 		assertSeek(t, r, -2, io.SeekCurrent, 1, nil)
@@ -374,7 +366,7 @@ func TestReaderSeekCurrentClampsNegativeIndex(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadSeekCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertRead(t, r, 1, "a")
 		assertSeek(t, r, -10, io.SeekCurrent, 0, ErrNegativeIndex)
@@ -387,7 +379,7 @@ func TestReaderSeekEndNotSupported(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadSeekCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		assertSeek(t, r, 0, io.SeekEnd, 0, ErrSeekEndNotSupported)
 		assertRead(t, r, 2, "ab")
@@ -399,7 +391,7 @@ func TestReaderSeekInvalidWhence(t *testing.T) {
 		_, _ = b.Write([]byte("abcdef"))
 
 		var r io.ReadSeekCloser
-		r = b.Reader()
+		r = mustReader(t, b)
 
 		var (
 			pos int64
@@ -444,4 +436,15 @@ func assertRead(t *testing.T, r io.Reader, bufSize int, want string) {
 	if got := string(buf[:n]); got != want {
 		t.Fatalf("Read data = %q, want %q", got, want)
 	}
+}
+
+func mustReader(t *testing.T, b *Buffer) (out io.ReadSeekCloser) {
+	t.Helper()
+
+	var err error
+	if out, err = b.Reader(); err != nil {
+		t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", out, err)
+	}
+
+	return out
 }

@@ -160,7 +160,11 @@ func TestBufferCloseAndWaitCancelDoesNotLeakWaitForReadersGoroutine(t *testing.T
 		b = NewMemory()
 
 		var r io.ReadCloser
-		r = b.Reader()
+		var readErr error
+		r, readErr = b.Reader()
+		if readErr != nil {
+			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, readErr)
+		}
 
 		var cancel context.CancelFunc
 		var ctx context.Context
