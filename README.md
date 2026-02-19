@@ -147,6 +147,7 @@ Readers block when no data is available and resume automatically when new data i
 - `ctx` can be a timeout/deadline context to bound how long shutdown waits.
 - Terminal reads after either buffer close or reader close return `ErrIsClosed`.
 - To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and context cancellation).
+- If `ctx` is canceled before readers close, `CloseAndWait` still returns and the buffer stays closed; close outstanding readers afterward to finish internal wait cleanup.
 
 ### Pluggable storage
 
