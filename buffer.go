@@ -44,7 +44,10 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 		return
 	}
 
-	b.waiter.Refresh()
+	if err = b.waiter.Refresh(); err != nil {
+		return
+	}
+
 	return
 }
 
