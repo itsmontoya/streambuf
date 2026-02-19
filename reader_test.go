@@ -207,6 +207,48 @@ func TestReaderCloseIdempotent(t *testing.T) {
 	})
 }
 
+func TestReaderZeroLengthReadReturnsImmediately(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		var (
+			n   int
+			err error
+		)
+
+		r := mustReader(t, b)
+		done := make(chan struct{})
+
+		go func() {
+			var empty []byte
+			empty = make([]byte, 0)
+			n, err = r.Read(empty)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			if err != nil || n != 0 {
+				t.Fatalf("Read(empty) = (%d, %v), want (0, nil)", n, err)
+			}
+		case <-time.After(time.Second):
+			if closeErr := r.Close(); closeErr != nil {
+				t.Fatalf("Close = %v, want nil", closeErr)
+			}
+
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatalf("Read(empty) blocked and did not unblock after Close")
+			}
+
+			t.Fatalf("Read(empty) blocked, want immediate (0, nil)")
+		}
+
+		if closeErr := r.Close(); closeErr != nil {
+			t.Fatalf("Close = %v, want nil", closeErr)
+		}
+	})
+}
+
 func TestReaderReadAfterClose(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var r io.ReadCloser
