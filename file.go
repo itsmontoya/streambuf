@@ -8,11 +8,12 @@ import (
 func newFile(filepath string) (out *file, err error) {
 	var f file
 	if f.w, err = os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644); err != nil {
-		return
+		return nil, err
 	}
 
 	if f.r, err = os.Open(filepath); err != nil {
-		return
+		f.w.Close()
+		return nil, err
 	}
 
 	return &f, nil
