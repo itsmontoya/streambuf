@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/itsmontoya/streambuf"
@@ -13,6 +14,7 @@ import (
 func main() {
 	var (
 		buf *streambuf.Buffer
+		wg  sync.WaitGroup
 		err error
 	)
 
@@ -21,39 +23,41 @@ func main() {
 	}
 	defer os.Remove("./stream.log")
 
-	var fast io.ReadCloser
-	if fast, err = buf.Reader(); err != nil {
+	var first io.ReadCloser
+	if first, err = buf.Reader(); err != nil {
 		log.Fatal(err)
 	}
 
-	var slow io.ReadCloser
-	if slow, err = buf.Reader(); err != nil {
-		log.Fatal(err)
-	}
-
-	var fastBS []byte
-	go func() {
-		fastBS, _ = io.ReadAll(fast)
-		defer fast.Close()
-	}()
-
-	var slowBS []byte
-	go func() {
-		time.Sleep(time.Second)
-		slowBS, _ = io.ReadAll(slow)
-		defer slow.Close()
-	}()
+	var firstBS []byte
+	wg.Go(func() {
+		firstBS, _ = io.ReadAll(first)
+		defer first.Close()
+	})
 
 	if _, err = buf.Write([]byte("hello file backend")); err != nil {
 		log.Fatal(err)
 	}
 
+	var late io.ReadCloser
+	if late, err = buf.Reader(); err != nil {
+		log.Fatal(err)
+	}
+
+	var lateBS []byte
+	wg.Go(func() {
+		time.Sleep(time.Second)
+		lateBS, _ = io.ReadAll(late)
+		defer late.Close()
+	})
+
 	if err = buf.Close(); err != nil {
 		log.Fatal(err)
 	}
 
+	wg.Wait()
+
 	// Fast reader has all contents
-	fmt.Printf("fast reader: %s\n", string(fastBS))
-	// Slow reader is missing contents due to Close ending readers immediately
-	fmt.Printf("slow reader: %s\n", string(slowBS))
+	fmt.Printf("first reader: %s\n", string(firstBS))
+	// Late reader is missing contents due to Close ending readers immediately
+	fmt.Printf("late reader: %s\n", string(lateBS))
 }
