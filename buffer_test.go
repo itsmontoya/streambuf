@@ -40,6 +40,18 @@ func TestBufferCloseAfterClose(t *testing.T) {
 	})
 }
 
+func TestBufferCloseWhenBackendWriterAlreadyClosed(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		if err := b.b.CloseWriter(); err != nil {
+			t.Fatalf("backend CloseWriter = %v, want nil", err)
+		}
+
+		if err := b.Close(); err != ErrIsClosed {
+			t.Fatalf("Close with already closed backend writer = %v, want %v", err, ErrIsClosed)
+		}
+	})
+}
+
 func TestBufferSignalsWaitersOnWriteAndClose(t *testing.T) {
 	runForEachBackend(t, func(t *testing.T, b *Buffer) {
 		var first <-chan struct{}
@@ -105,6 +117,23 @@ func TestBufferCloseAndWaitWhenWaiterAlreadyClosed(t *testing.T) {
 
 		if err := b.CloseAndWait(context.Background()); err != ErrIsClosed {
 			t.Fatalf("CloseAndWait with closed waiter = %v, want %v", err, ErrIsClosed)
+		}
+	})
+}
+
+func TestBufferWriteWhenWaiterAlreadyClosed(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		if err := b.waiter.Close(); err != nil {
+			t.Fatalf("waiter.Close = %v, want nil", err)
+		}
+
+		var (
+			n   int
+			err error
+		)
+		n, err = b.Write([]byte("hello"))
+		if err != ErrIsClosed || n != len("hello") {
+			t.Fatalf("Write with closed waiter = (%d, %v), want (%d, %v)", n, err, len("hello"), ErrIsClosed)
 		}
 	})
 }
