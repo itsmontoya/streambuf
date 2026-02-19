@@ -109,6 +109,74 @@ func TestBufferCloseAndWaitWhenWaiterAlreadyClosed(t *testing.T) {
 	})
 }
 
+func TestBufferCloseAndWaitReturnsOnContextCancelWithOpenReader(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		var r io.ReadCloser
+		var err error
+		if r, err = b.Reader(); err != nil {
+			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, err)
+		}
+		defer r.Close()
+
+		var cancel context.CancelFunc
+		var ctx context.Context
+		ctx, cancel = context.WithCancel(context.Background())
+		cancel()
+
+		var closeDone chan error
+		closeDone = make(chan error, 1)
+		go func() {
+			closeDone <- b.CloseAndWait(ctx)
+		}()
+
+		select {
+		case err = <-closeDone:
+			if err != nil {
+				t.Fatalf("CloseAndWait(cancelled) = %v, want nil", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("CloseAndWait(cancelled) did not return with open reader")
+		}
+	})
+}
+
+func TestBufferCloseAndWaitCancelStillClosesBufferState(t *testing.T) {
+	runForEachBackend(t, func(t *testing.T, b *Buffer) {
+		var r io.ReadCloser
+		var err error
+		if r, err = b.Reader(); err != nil {
+			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, err)
+		}
+
+		var cancel context.CancelFunc
+		var ctx context.Context
+		ctx, cancel = context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+
+		if err = b.CloseAndWait(ctx); err != nil {
+			t.Fatalf("CloseAndWait(expired ctx) = %v, want nil", err)
+		}
+
+		var (
+			n int
+		)
+		n, err = b.Write([]byte("x"))
+		if err != ErrIsClosed || n != 0 {
+			t.Fatalf("Write after canceled CloseAndWait = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
+		}
+
+		var rs io.ReadSeekCloser
+		rs, err = b.Reader()
+		if err != ErrIsClosed || rs != nil {
+			t.Fatalf("Reader after canceled CloseAndWait = (%v, %v), want (nil, %v)", rs, err, ErrIsClosed)
+		}
+
+		if err = r.Close(); err != nil {
+			t.Fatalf("reader Close = %v, want nil", err)
+		}
+	})
+}
+
 func TestNewWhenFileOpenFails(t *testing.T) {
 	var (
 		b   *Buffer
