@@ -89,7 +89,7 @@ func (b *Buffer) waitUntilDone(cancel <-chan struct{}) {
 }
 
 func (b *Buffer) waitForReaders() (out <-chan struct{}) {
-	done := make(chan struct{})
+	done := make(chan struct{}, 1)
 	go func() {
 		b.wg.Wait()
 		done <- struct{}{}
