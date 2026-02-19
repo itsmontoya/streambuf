@@ -25,11 +25,17 @@ func (w *waiter) Wait() (out <-chan struct{}) {
 }
 
 // Refresh closes the current notification channel and creates a new one.
-func (w *waiter) Refresh() {
+// It returns ErrIsClosed if the waiter is already closed.
+func (w *waiter) Refresh() (err error) {
 	w.mux.Lock()
 	defer w.mux.Unlock()
+	if w.closed {
+		return ErrIsClosed
+	}
+
 	close(w.c)
 	w.c = make(chan struct{})
+	return nil
 }
 
 // Close closes the waiter and its notification channel.

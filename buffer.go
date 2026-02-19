@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// ErrIsClosed is returned when an action is attempted on a closed instance
+// ErrIsClosed is returned when an action is attempted on a closed instance.
 var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
 // New constructs a new file Buffer.
@@ -31,29 +31,43 @@ func NewMemory() (out *Buffer) {
 
 // Buffer is a concurrent-safe byte buffer with reader support.
 type Buffer struct {
-	b backend
+	mux sync.RWMutex
+	b   backend
+	wg  sync.WaitGroup
 
 	waiter *waiter
 
-	wg sync.WaitGroup
+	closed bool
 }
 
 // Write appends bytes to the buffer and wakes waiting readers.
+// It returns ErrIsClosed if the buffer has been closed.
 func (b *Buffer) Write(bs []byte) (n int, err error) {
+	b.mux.RLock()
+	defer b.mux.RUnlock()
 	if n, err = b.b.Write(bs); err != nil {
 		return
 	}
 
-	b.waiter.Refresh()
+	if err = b.waiter.Refresh(); err != nil {
+		return
+	}
+
 	return
 }
 
 // Reader returns a new ReadSeekCloser that streams data from the buffer.
 // Each reader tracks its own read offset and supports seeking relative to
-// the start or current position.
-func (b *Buffer) Reader() (r io.ReadSeekCloser) {
+// the start or current position. It returns ErrIsClosed if the buffer is closed.
+func (b *Buffer) Reader() (r io.ReadSeekCloser, err error) {
+	b.mux.RLock()
+	defer b.mux.RUnlock()
+	if b.closed {
+		return nil, ErrIsClosed
+	}
+
 	b.wg.Add(1)
-	return newReader(b)
+	return newReader(b), nil
 }
 
 // Close closes the writer side of the buffer and signals waiting readers.
@@ -64,8 +78,17 @@ func (b *Buffer) Close() (err error) {
 
 // CloseAndWait closes the writer side of the buffer and signals waiting readers.
 // It waits for readers to close until ctx is canceled.
+// Once called successfully, future Reader and Write calls return ErrIsClosed.
 // ctx must be non-nil.
 func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+	if b.closed {
+		return ErrIsClosed
+	}
+
+	b.closed = true
+
 	if err = b.b.CloseWriter(); err != nil {
 		return
 	}
