@@ -97,7 +97,7 @@ func main() {
 Additional runnable examples live in `examples/`:
 
 - `examples/basic/main.go`: demonstrates immediate `Close()` behavior.
-- `examples/basic_with_wait/main.go`: demonstrates `CloseAndWait(cancel)` with timeout-based cancellation.
+- `examples/basic_with_wait/main.go`: demonstrates `CloseAndWait(ctx)` with timeout-based cancellation.
 
 Run them from the repository root:
 
@@ -131,9 +131,9 @@ Readers block when no data is available and resume automatically when new data i
 ### Shutdown behavior
 
 - `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
-- `CloseAndWait(cancel)` closes writes and waits for readers only when `cancel` is non-nil and not yet closed.
-- `cancel` can be a timeout channel you close after a deadline to bound how long shutdown waits.
-- To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and a cancel channel).
+- `CloseAndWait(ctx)` closes writes and waits for readers until `ctx` is canceled.
+- `ctx` can be a timeout/deadline context to bound how long shutdown waits.
+- To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and context cancellation).
 
 ### Pluggable storage
 
