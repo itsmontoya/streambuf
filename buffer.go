@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// ErrIsClosed is returned when an action is attempted on a closed instance
+// ErrIsClosed is returned when an action is attempted on a closed instance.
 var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
 // New constructs a new file Buffer.
@@ -41,6 +41,7 @@ type Buffer struct {
 }
 
 // Write appends bytes to the buffer and wakes waiting readers.
+// It returns ErrIsClosed if the buffer has been closed.
 func (b *Buffer) Write(bs []byte) (n int, err error) {
 	b.mux.RLock()
 	defer b.mux.RUnlock()
@@ -57,7 +58,7 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 
 // Reader returns a new ReadSeekCloser that streams data from the buffer.
 // Each reader tracks its own read offset and supports seeking relative to
-// the start or current position.
+// the start or current position. It returns ErrIsClosed if the buffer is closed.
 func (b *Buffer) Reader() (r io.ReadSeekCloser, err error) {
 	b.mux.RLock()
 	defer b.mux.RUnlock()
@@ -77,6 +78,7 @@ func (b *Buffer) Close() (err error) {
 
 // CloseAndWait closes the writer side of the buffer and signals waiting readers.
 // It waits for readers to close until ctx is canceled.
+// Once called successfully, future Reader and Write calls return ErrIsClosed.
 // ctx must be non-nil.
 func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 	b.mux.Lock()

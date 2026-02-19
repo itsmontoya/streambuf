@@ -25,6 +25,7 @@ func (w *waiter) Wait() (out <-chan struct{}) {
 }
 
 // Refresh closes the current notification channel and creates a new one.
+// It returns ErrIsClosed if the waiter is already closed.
 func (w *waiter) Refresh() (err error) {
 	w.mux.Lock()
 	defer w.mux.Unlock()
