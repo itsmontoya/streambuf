@@ -37,6 +37,8 @@ type reader struct {
 
 // Read copies available bytes into in and blocks until data is written,
 // the buffer is closed, or the reader is closed.
+// When no bytes are read, it returns ErrIsClosed after either the buffer
+// closes or the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
 	for {
 		n, err = r.b.b.ReadAt(in, r.index)
@@ -86,6 +88,7 @@ func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
 }
 
 // Close closes the reader and unblocks any pending Read calls.
+// Subsequent Read calls return ErrIsClosed when no bytes are read.
 func (r *reader) Close() (err error) {
 	if err = r.closer.Close(); err != nil {
 		return
