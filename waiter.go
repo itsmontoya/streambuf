@@ -2,6 +2,7 @@ package streambuf
 
 import "sync"
 
+// newWaiter constructs a waiter with an initial notification channel.
 func newWaiter() (out *waiter) {
 	var w waiter
 	w.c = make(chan struct{})

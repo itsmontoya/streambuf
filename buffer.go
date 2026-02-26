@@ -36,7 +36,7 @@ func NewMemory() (out *Buffer) {
 	return newWithBackend(b)
 }
 
-// NewMemory constructs a new in-memory Buffer.
+// NewReadOnlyMemory constructs a new read-only in-memory Buffer backed by bs.
 func NewReadOnlyMemory(bs []byte) (out *Buffer) {
 	b := newReadOnlyMemory(bs)
 	return newWithBackend(b)
@@ -49,7 +49,7 @@ func newWithBackend(be backend) (out *Buffer) {
 	return &b
 }
 
-// Buffer is a concurrent-safe byte buffer with reader support.
+// Buffer is a thread-safe byte buffer with reader support.
 type Buffer struct {
 	mux sync.RWMutex
 	b   backend
@@ -76,7 +76,7 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 	return
 }
 
-// Reader returns a new ReadSeekCloser that streams data from the buffer.
+// Reader returns a new io.ReadSeekCloser that streams data from the buffer.
 // Each reader tracks its own read offset and supports seeking relative to
 // the start or current position. It returns ErrIsClosed if the buffer is closed.
 func (b *Buffer) Reader() (r io.ReadSeekCloser, err error) {
@@ -98,7 +98,7 @@ func (b *Buffer) Close() (err error) {
 
 // CloseAndWait closes the writer side of the buffer and signals waiting readers.
 // It waits for readers to close until ctx is canceled.
-// Once called successfully, future Reader and Write calls return ErrIsClosed.
+// Once called, future Reader and Write calls return ErrIsClosed.
 // ctx must be non-nil.
 // If ctx is canceled before readers close, this call still returns and the
 // buffer remains closed; readers should still be closed to complete internal

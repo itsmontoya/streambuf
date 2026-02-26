@@ -1,3 +1,5 @@
+// Package streambuf provides a concurrent buffer with independent readers that
+// can block until more data is written or the buffer is closed.
 package streambuf
 
 import "context"
