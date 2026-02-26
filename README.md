@@ -55,6 +55,8 @@ func ExampleNew() {
 ```go
 func ExampleNewReadOnly() {
 	var err error
+	// NewReadOnly constructs a read-only file-backed buffer.
+	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
 	if exampleBuffer, err = NewReadOnly("path/to/file"); err != nil {
 		log.Fatal(err)
 	}
@@ -71,6 +73,8 @@ func ExampleNewMemory() {
 ### NewReadOnlyMemory
 ```go
 func ExampleNewReadOnlyMemory() {
+	// NewReadOnlyMemory constructs a read-only memory-backed buffer.
+	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
 	exampleBuffer = NewReadOnlyMemory([]byte("hello world"))
 }
 ```
@@ -176,6 +180,8 @@ Readers block when no data is available and resume automatically when new data i
 
 - **Memory-backed** (`[]byte`)
 - **File-backed** (using a shared file descriptor)
+- **Read-only memory-backed** (preloaded `[]byte`)
+- **Read-only file-backed** (existing file opened read-only)
 
 Both implementations expose the same behavior and API.
 
