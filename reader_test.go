@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func Test_reader_Read(t *testing.T) {
@@ -396,6 +397,207 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 
 			if gotN != 0 {
 				t.Fatalf("Read() invalid n after writer close, expected <0> and received <%v>", gotN)
+			}
+		})
+	}
+}
+
+func Test_reader_Read_no_bytes_available_not_closed(t *testing.T) {
+	type readResult struct {
+		n   int
+		err error
+	}
+
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		unblock func(t *testing.T, b *Buffer, testInput []byte)
+
+		wantN   int
+		wantErr error
+	}
+
+	testInput := []byte("This is our test input!")
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
+				var (
+					gotWriteN int
+					gotWriteE error
+				)
+
+				t.Helper()
+
+				gotWriteN, gotWriteE = b.Write(testInput)
+				if gotWriteE != nil {
+					t.Fatalf("Write() unexpected error: %v", gotWriteE)
+				}
+
+				if gotWriteN != len(testInput) {
+					t.Fatalf("Write() invalid n, expected <%v> and received <%v>", len(testInput), gotWriteN)
+				}
+			},
+			wantN: len(testInput),
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-read-wait-for-bytes-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
+				var (
+					gotWriteN int
+					gotWriteE error
+				)
+
+				t.Helper()
+
+				gotWriteN, gotWriteE = b.Write(testInput)
+				if gotWriteE != nil {
+					t.Fatalf("Write() unexpected error: %v", gotWriteE)
+				}
+
+				if gotWriteN != len(testInput) {
+					t.Fatalf("Write() invalid n, expected <%v> and received <%v>", len(testInput), gotWriteN)
+				}
+			},
+			wantN: len(testInput),
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
+				var err error
+
+				t.Helper()
+
+				if err = b.Close(); err != nil {
+					t.Fatalf("Close() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only file empty",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-read-wait-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
+				var err error
+
+				t.Helper()
+
+				if err = b.Close(); err != nil {
+					t.Fatalf("Close() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b       *Buffer
+				err     error
+				r       *reader
+				bs      []byte
+				results chan readResult
+				got     readResult
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			r = newReader(b)
+			bs = make([]byte, len(testInput))
+			results = make(chan readResult, 1)
+
+			go func() {
+				var out readResult
+				out.n, out.err = r.Read(bs)
+				results <- out
+			}()
+
+			select {
+			case got = <-results:
+				t.Fatalf("Read() returned before test unblocked it, n=<%v> err=<%v>", got.n, got.err)
+			case <-time.After(25 * time.Millisecond):
+			}
+
+			tt.unblock(t, b, testInput)
+
+			select {
+			case got = <-results:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Read() did not unblock after test action")
+			}
+
+			if !isEqualErrors(got.err, tt.wantErr) {
+				t.Fatalf("Read() invalid error after test action, expected <%v> and received <%v>", tt.wantErr, got.err)
+			}
+
+			if got.n != tt.wantN {
+				t.Fatalf("Read() invalid n after test action, expected <%v> and received <%v>", tt.wantN, got.n)
+			}
+
+			if got.err != nil {
+				return
+			}
+
+			if !bytes.Equal(bs, testInput) {
+				t.Fatalf("Read() invalid read value after bytes were written, expected <%v> and received <%v>", string(testInput), string(bs))
 			}
 		})
 	}
