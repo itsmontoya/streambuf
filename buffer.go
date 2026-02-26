@@ -21,6 +21,17 @@ func New(filepath string) (out *Buffer, err error) {
 	return &b, nil
 }
 
+// NewReadOnly constructs a new read-only file Buffer.
+func NewReadOnly(filepath string) (out *Buffer, err error) {
+	var b Buffer
+	if b.b, err = newReadOnlyFile(filepath); err != nil {
+		return
+	}
+
+	b.waiter = newWaiter()
+	return &b, nil
+}
+
 // NewMemory constructs a new in-memory Buffer.
 func NewMemory() (out *Buffer) {
 	var b Buffer
