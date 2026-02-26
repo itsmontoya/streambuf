@@ -756,3 +756,122 @@ func Test_Buffer_CloseAndWait_underlying_writer_closed(t *testing.T) {
 		})
 	}
 }
+
+func Test_Buffer_CloseAndWait_underlying_reader_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, b *Buffer)
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-reader-closed-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-reader-closed-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.setup != nil {
+				tt.setup(t, b)
+			}
+
+			gotErr = b.CloseAndWait(context.Background())
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("CloseAndWait() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+		})
+	}
+}
