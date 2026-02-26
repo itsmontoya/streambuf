@@ -165,6 +165,14 @@ Readers may:
 
 Readers block when no data is available and resume automatically when new data is appended.
 
+For read-only buffers (`NewReadOnly`, `NewReadOnlyMemory`), this means reaching the
+current end of the preloaded data/file will also block until the buffer is closed
+or the reader is closed.
+
+If you are treating a read-only buffer as a finite snapshot, call `Close()` (or
+`CloseAndWait(...)`) on the buffer after readers finish consuming data, or close
+the reader directly, to unblock waiting reads and complete shutdown cleanly.
+
 ### Shutdown behavior
 
 - `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
