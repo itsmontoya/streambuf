@@ -87,8 +87,6 @@ func ExampleBuffer_Write() {
 ### Buffer.Reader
 ```go
 func ExampleBuffer_Reader() {
-	exampleBuffer = NewMemory()
-
 	var err error
 	if _, err = exampleBuffer.Write([]byte("hello world")); err != nil {
 		log.Fatal(err)
