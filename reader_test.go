@@ -263,6 +263,144 @@ func Test_reader_Read_closed_reader_while_waiting(t *testing.T) {
 	}
 }
 
+func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		wantErr error
+	}
+
+	testInput := []byte("This is our test input!")
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-read-eof-closed-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only memory with preloaded bytes",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(append([]byte(nil), testInput...)), nil
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only file with preloaded bytes",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-read-eof-closed-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if _, err = f.Write(testInput); err != nil {
+					_ = f.Close()
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b          *Buffer
+				err        error
+				r          *reader
+				bs         []byte
+				gotN       int
+				gotErr     error
+				secondRead []byte
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			b.Write(testInput)
+
+			r = newReader(b)
+			bs = make([]byte, len(testInput))
+			gotN, gotErr = r.Read(bs)
+			if gotErr != nil {
+				t.Fatalf("Read() unexpected error while consuming bytes: %v", gotErr)
+			}
+
+			if gotN != len(testInput) {
+				t.Fatalf("Read() invalid n while consuming bytes, expected <%v> and received <%v>", len(testInput), gotN)
+			}
+
+			if !bytes.Equal(bs, testInput) {
+				t.Fatalf("Read() invalid read value while consuming bytes, expected <%v> and received <%v>", string(testInput), string(bs))
+			}
+
+			if err = b.Close(); err != nil {
+				t.Fatalf("Close() unexpected error: %v", err)
+			}
+
+			secondRead = make([]byte, 1)
+			gotN, gotErr = r.Read(secondRead)
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("Read() invalid error after writer close, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+
+			if gotN != 0 {
+				t.Fatalf("Read() invalid n after writer close, expected <0> and received <%v>", gotN)
+			}
+		})
+	}
+}
+
 func Test_reader_Seek(t *testing.T) {
 	type testcase struct {
 		name string // description of this test case
