@@ -141,6 +141,31 @@ func Test_reader_Read(t *testing.T) {
 	}
 }
 
+func Test_reader_Read_zero_length_input(t *testing.T) {
+	var (
+		b      *Buffer
+		r      *reader
+		bs     []byte
+		gotN   int
+		gotErr error
+	)
+
+	// Zero-length reads return before interacting with the backend, so this
+	// behavior is backend-independent and only needs one simple backend setup.
+	b = NewMemory()
+	r = newReader(b)
+	bs = make([]byte, 0)
+	gotN, gotErr = r.Read(bs)
+
+	if gotErr != nil {
+		t.Fatalf("Read() invalid error, expected <nil> and received <%v>", gotErr)
+	}
+
+	if gotN != 0 {
+		t.Fatalf("Read() invalid n, expected <0> and received <%v>", gotN)
+	}
+}
+
 func Test_reader_Seek(t *testing.T) {
 	type testcase struct {
 		name string // description of this test case
@@ -319,6 +344,131 @@ func Test_reader_Seek(t *testing.T) {
 
 			if gotPos != tt.wantPos {
 				t.Fatalf("Seek() invalid pos, expected <%v> and received <%v>", tt.wantPos, gotPos)
+			}
+		})
+	}
+}
+
+func Test_reader_Close(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, r *reader)
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-close-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-close-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+		},
+		{
+			name: "already closed reader",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, r *reader) {
+				var err error
+
+				t.Helper()
+
+				if err = r.Close(); err != nil {
+					t.Fatalf("setup Close() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				r      *reader
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			r = newReader(b)
+			b.wg.Add(1)
+
+			if tt.setup != nil {
+				tt.setup(t, r)
+			}
+
+			gotErr = r.Close()
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("Close() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
 			}
 		})
 	}
