@@ -207,18 +207,44 @@ func TestBufferCloseAndWaitCancelStillClosesBufferState(t *testing.T) {
 }
 
 func TestNewWhenFileOpenFails(t *testing.T) {
-	var (
-		b   *Buffer
-		err error
-	)
-
-	path := filepath.Join(t.TempDir(), "missing", "streambuf.test")
-	if b, err = New(path); err == nil {
-		t.Fatalf("New(%q) = (%v, nil), want non-nil error", path, b)
+	type constructor struct {
+		name string
+		new  func(filepath string) (out *Buffer, err error)
 	}
 
-	if b != nil {
-		t.Fatalf("New(%q) buffer = %v, want nil", path, b)
+	var tests []constructor
+	tests = []constructor{
+		{
+			name: "file",
+			new:  New,
+		},
+		{
+			name: "read_only_file",
+			new:  NewReadOnly,
+		},
+	}
+
+	var path string
+	path = filepath.Join(t.TempDir(), "missing", "streambuf.test")
+
+	for _, tt := range tests {
+		var tc constructor
+		tc = tt
+
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				b   *Buffer
+				err error
+			)
+
+			if b, err = tc.new(path); err == nil {
+				t.Fatalf("new(%q) = (%v, nil), want non-nil error", path, b)
+			}
+
+			if b != nil {
+				t.Fatalf("new(%q) buffer = %v, want nil", path, b)
+			}
+		})
 	}
 }
 
