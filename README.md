@@ -39,84 +39,106 @@ This pattern shows up frequently in systems programming, including:
 
 ## Examples
 
-Quick start example:
+Below are quick API examples. For runnable end-to-end examples, see `examples/`.
 
+### New
 ```go
-package main
-
-import (
-	"fmt"
-	"io"
-	"log"
-	"os"
-	"sync"
-	"time"
-
-	"github.com/itsmontoya/streambuf"
-)
-
-func main() {
-	var (
-		buf *streambuf.Buffer
-		wg  sync.WaitGroup
-		err error
-	)
-
-	if buf, err = streambuf.New("./stream.log"); err != nil {
+func ExampleNew() {
+	var err error
+	if exampleBuffer, err = New("path/to/file"); err != nil {
 		log.Fatal(err)
 	}
-	defer os.Remove("./stream.log")
-
-	var first io.ReadCloser
-	if first, err = buf.Reader(); err != nil {
-		log.Fatal(err)
-	}
-
-	var firstBS []byte
-	wg.Go(func() {
-		firstBS, _ = io.ReadAll(first)
-		defer first.Close()
-	})
-
-	if _, err = buf.Write([]byte("hello file backend")); err != nil {
-		log.Fatal(err)
-	}
-
-	var late io.ReadCloser
-	if late, err = buf.Reader(); err != nil {
-		log.Fatal(err)
-	}
-
-	var lateBS []byte
-	wg.Go(func() {
-		time.Sleep(time.Second)
-		lateBS, _ = io.ReadAll(late)
-		defer late.Close()
-	})
-
-	if err = buf.Close(); err != nil {
-		log.Fatal(err)
-	}
-
-	wg.Wait()
-
-	// Fast reader has all contents
-	fmt.Printf("first reader: %s\n", string(firstBS))
-	// Late reader is missing contents due to Close ending readers immediately
-	fmt.Printf("late reader: %s\n", string(lateBS))
 }
 ```
 
-Additional runnable examples live in `examples/`:
+### NewReadOnly
+```go
+func ExampleNewReadOnly() {
+	var err error
+	if exampleBuffer, err = NewReadOnly("path/to/file"); err != nil {
+		log.Fatal(err)
+	}
+}
+```
 
-- `examples/basic/main.go`: demonstrates immediate `Close()` behavior.
-- `examples/basic_with_wait/main.go`: demonstrates `CloseAndWait(ctx)` with timeout-based cancellation.
+### NewMemory
+```go
+func ExampleNewMemory() {
+	exampleBuffer = NewMemory()
+}
+```
 
-Run them from the repository root:
+### NewReadOnlyMemory
+```go
+func ExampleNewReadOnlyMemory() {
+	exampleBuffer = NewReadOnlyMemory([]byte("hello world"))
+}
+```
 
-```bash
-go run ./examples/basic
-go run ./examples/basic_with_wait
+### Buffer.Write
+```go
+func ExampleBuffer_Write() {
+	if _, err := exampleBuffer.Write([]byte("hello world")); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+### Buffer.Reader
+```go
+func ExampleBuffer_Reader() {
+	exampleBuffer = NewMemory()
+
+	var err error
+	if _, err = exampleBuffer.Write([]byte("hello world")); err != nil {
+		log.Fatal(err)
+	}
+
+	var (
+		r1 io.ReadSeekCloser
+		r2 io.ReadSeekCloser
+		r3 io.ReadSeekCloser
+	)
+
+	if r1, err = exampleBuffer.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r1.Close()
+
+	if r2, err = exampleBuffer.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r2.Close()
+
+	if r3, err = exampleBuffer.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r3.Close()
+
+	// Each reader is independent and maintains its own read offset.
+	// Reads or seeks on r1 do not affect r2 or r3.
+}
+```
+
+### Buffer.Close
+```go
+func ExampleBuffer_Close() {
+	// Close closes the backend immediately and does not wait for readers to finish.
+	if err := exampleBuffer.Close(); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+### Buffer.CloseAndWait
+```go
+func ExampleBuffer_CloseAndWait() {
+	// CloseAndWait blocks until the backend is closed and all readers are closed,
+	// or until the provided context is done.
+	if err := exampleBuffer.CloseAndWait(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
 ```
 
 ## Core Concepts
