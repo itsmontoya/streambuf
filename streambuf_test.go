@@ -17,6 +17,8 @@ func ExampleNew() {
 
 func ExampleNewReadOnly() {
 	var err error
+	// NewReadOnly constructs a read-only file-backed buffer.
+	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
 	if exampleBuffer, err = NewReadOnly("path/to/file"); err != nil {
 		log.Fatal(err)
 	}
@@ -27,6 +29,8 @@ func ExampleNewMemory() {
 }
 
 func ExampleNewReadOnlyMemory() {
+	// NewReadOnlyMemory constructs a read-only memory-backed buffer.
+	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
 	exampleBuffer = NewReadOnlyMemory([]byte("hello world"))
 }
 
