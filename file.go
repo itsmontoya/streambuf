@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// newFile constructs a file backend with separate read and append handles.
 func newFile(filepath string) (out *file, err error) {
 	var f file
 	if f.w, err = os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644); err != nil {
@@ -19,6 +20,7 @@ func newFile(filepath string) (out *file, err error) {
 	return &f, nil
 }
 
+// file is a backend backed by separate file handles for reading and writing.
 type file struct {
 	mux sync.RWMutex
 
@@ -41,6 +43,7 @@ func (f *file) Write(bs []byte) (n int, err error) {
 }
 
 // ReadAt copies bytes from index into in.
+// It returns ErrIsClosed when no bytes are read and the writer has been closed.
 func (f *file) ReadAt(in []byte, index int64) (n int, err error) {
 	f.mux.RLock()
 	defer f.mux.RUnlock()

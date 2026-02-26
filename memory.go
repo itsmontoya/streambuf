@@ -37,6 +37,7 @@ func (m *memory) Write(bs []byte) (n int, err error) {
 }
 
 // ReadAt copies bytes from index into in.
+// It returns ErrIsClosed when no bytes are available and the writer is closed.
 func (m *memory) ReadAt(in []byte, index int64) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()

@@ -7,13 +7,14 @@ import (
 
 var _ backend = &readOnlyMemory{}
 
+// newReadOnlyMemory constructs a read-only memory backend backed by in.
 func newReadOnlyMemory(in []byte) (out *readOnlyMemory) {
 	var m readOnlyMemory
 	m.bs = in
 	return &m
 }
 
-// readOnlyMemory is the backend that stores bytes and close state.
+// readOnlyMemory is a read-only backend that stores bytes and close state.
 type readOnlyMemory struct {
 	mux sync.RWMutex
 
@@ -22,12 +23,13 @@ type readOnlyMemory struct {
 	closed bool
 }
 
-// Write appends bytes to the backend unless it is closed.
+// Write always returns ErrCannotWriteToReadOnly.
 func (m *readOnlyMemory) Write(bs []byte) (n int, err error) {
 	return 0, ErrCannotWriteToReadOnly
 }
 
 // ReadAt copies bytes from index into in.
+// It returns ErrIsClosed when no bytes are available and the backend is closed.
 func (m *readOnlyMemory) ReadAt(in []byte, index int64) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
@@ -42,12 +44,12 @@ func (m *readOnlyMemory) ReadAt(in []byte, index int64) (n int, err error) {
 	}
 }
 
-// CloseWriter marks the readOnlyMemory backend writer as closed.
+// CloseWriter is a no-op for readOnlyMemory and always returns nil.
 func (m *readOnlyMemory) CloseWriter() (err error) {
 	return nil
 }
 
-// CloseReader marks the readOnlyMemory backend reader as closed and releases readOnlyMemory.
+// CloseReader marks readOnlyMemory as closed and releases its byte slice.
 func (m *readOnlyMemory) CloseReader() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
