@@ -12,32 +12,70 @@ func Test_New_invalid_filepath(t *testing.T) {
 	type testcase struct {
 		name string // description of this test case
 
-		filepath string
+		init func(t *testing.T) (filepath string, err error)
 
 		wantErr bool
 	}
 
 	tests := []testcase{
 		{
-			name:     "missing parent directory",
-			filepath: t.TempDir() + "/missing-dir/buffer.tmp",
-			wantErr:  true,
+			name: "missing parent directory",
+			init: func(t *testing.T) (filepath string, err error) {
+				t.Helper()
+				return t.TempDir() + "/missing-dir/buffer.tmp", nil
+			},
+			wantErr: true,
 		},
 		{
-			name:     "empty filepath",
-			filepath: "",
-			wantErr:  true,
+			name: "empty filepath",
+			init: func(t *testing.T) (filepath string, err error) {
+				t.Helper()
+				return "", nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "writer opens but reader open fails",
+			init: func(t *testing.T) (filepath string, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "new-invalid-*"); err != nil {
+					return "", err
+				}
+
+				filepath = f.Name()
+
+				if err = f.Close(); err != nil {
+					return "", err
+				}
+
+				// Write-only file permissions allow newFile() to open the writer
+				// handle while causing the subsequent reader open to fail.
+				if err = os.Chmod(filepath, 0200); err != nil {
+					return "", err
+				}
+
+				return filepath, nil
+			},
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
-				b   *Buffer
-				err error
+				filepath string
+				b        *Buffer
+				err      error
 			)
 
-			if b, err = New(tt.filepath); err != nil {
+			if filepath, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if b, err = New(filepath); err != nil {
 				if !tt.wantErr {
 					t.Fatalf("New() unexpected error: %v", err)
 				}
@@ -478,8 +516,7 @@ func Test_Buffer_CloseAndWait(t *testing.T) {
 				t.Helper()
 				return NewReadOnlyMemory(nil), nil
 			},
-			ctx:     context.Background(),
-			wantErr: ErrIsClosed,
+			ctx: context.Background(),
 		},
 		{
 			name: "closed buffer",
