@@ -9,7 +9,6 @@ var _ backend = &readOnlyMemory{}
 
 func newReadOnlyMemory(in []byte) (out *readOnlyMemory) {
 	var m readOnlyMemory
-	m.writerClosed = true
 	m.bs = in
 	return &m
 }
@@ -20,8 +19,7 @@ type readOnlyMemory struct {
 
 	bs []byte
 
-	writerClosed bool
-	readerClosed bool
+	closed bool
 }
 
 // Write appends bytes to the backend unless it is closed.
@@ -37,7 +35,7 @@ func (m *readOnlyMemory) ReadAt(in []byte, index int64) (n int, err error) {
 	case index < int64(len(m.bs)):
 		n = copy(in, m.bs[index:])
 		return n, nil
-	case m.writerClosed:
+	case m.closed:
 		return 0, ErrIsClosed
 	default:
 		return 0, io.EOF
@@ -46,13 +44,6 @@ func (m *readOnlyMemory) ReadAt(in []byte, index int64) (n int, err error) {
 
 // CloseWriter marks the readOnlyMemory backend writer as closed.
 func (m *readOnlyMemory) CloseWriter() (err error) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	if m.writerClosed {
-		return ErrIsClosed
-	}
-
-	m.writerClosed = true
 	return nil
 }
 
@@ -60,11 +51,11 @@ func (m *readOnlyMemory) CloseWriter() (err error) {
 func (m *readOnlyMemory) CloseReader() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	if m.readerClosed {
+	if m.closed {
 		return ErrIsClosed
 	}
 
-	m.readerClosed = true
+	m.closed = true
 	m.bs = nil
 	return nil
 }

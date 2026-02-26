@@ -1,381 +1,1037 @@
 package streambuf
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sync"
 	"testing"
-	"time"
 )
 
-func TestBufferWriteAfterClose(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.Close(); err != nil {
-			t.Fatalf("Close = %v, want nil", err)
-		}
+func Test_New_invalid_filepath(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
 
-		var (
-			n   int
-			err error
-		)
-		n, err = b.Write([]byte("hello"))
-		if err != ErrIsClosed || n != 0 {
-			t.Fatalf("Write after close = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
-		}
-	})
-}
+		init func(t *testing.T) (filepath string, err error)
 
-func TestBufferCloseAfterClose(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.Close(); err != nil {
-			t.Fatalf("Close = %v, want nil", err)
-		}
-
-		if err := b.Close(); err != ErrIsClosed {
-			t.Fatalf("Close second call = %v, want %v", err, ErrIsClosed)
-		}
-	})
-}
-
-func TestBufferCloseWhenBackendWriterAlreadyClosed(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.b.CloseWriter(); err != nil {
-			t.Fatalf("backend CloseWriter = %v, want nil", err)
-		}
-
-		if err := b.Close(); err != ErrIsClosed {
-			t.Fatalf("Close with already closed backend writer = %v, want %v", err, ErrIsClosed)
-		}
-	})
-}
-
-func TestBufferSignalsWaitersOnWriteAndClose(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		var first <-chan struct{}
-		first = b.waiter.Wait()
-
-		select {
-		case <-first:
-			t.Fatalf("initial waiter channel should be open")
-		default:
-		}
-
-		if _, err := b.Write([]byte("x")); err != nil {
-			t.Fatalf("Write = %v, want nil", err)
-		}
-
-		select {
-		case <-first:
-		default:
-			t.Fatalf("waiter channel should close after write")
-		}
-
-		var second <-chan struct{}
-		second = b.waiter.Wait()
-		if first == second {
-			t.Fatalf("waiter channel should refresh after write")
-		}
-
-		select {
-		case <-second:
-			t.Fatalf("refreshed waiter channel should be open before close")
-		default:
-		}
-
-		if err := b.Close(); err != nil {
-			t.Fatalf("Close = %v, want nil", err)
-		}
-
-		select {
-		case <-second:
-		default:
-			t.Fatalf("waiter channel should close after buffer close")
-		}
-	})
-}
-
-func TestBackendCloseReaderAfterCloseReader(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.b.CloseReader(); err != nil {
-			t.Fatalf("CloseReader = %v, want nil", err)
-		}
-
-		if err := b.b.CloseReader(); err != ErrIsClosed {
-			t.Fatalf("CloseReader second call = %v, want %v", err, ErrIsClosed)
-		}
-	})
-}
-
-func TestBufferCloseAndWaitWhenWaiterAlreadyClosed(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.waiter.Close(); err != nil {
-			t.Fatalf("waiter.Close = %v, want nil", err)
-		}
-
-		if err := b.CloseAndWait(context.Background()); err != ErrIsClosed {
-			t.Fatalf("CloseAndWait with closed waiter = %v, want %v", err, ErrIsClosed)
-		}
-	})
-}
-
-func TestBufferWriteWhenWaiterAlreadyClosed(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		if err := b.waiter.Close(); err != nil {
-			t.Fatalf("waiter.Close = %v, want nil", err)
-		}
-
-		var (
-			n   int
-			err error
-		)
-		n, err = b.Write([]byte("hello"))
-		if err != ErrIsClosed || n != len("hello") {
-			t.Fatalf("Write with closed waiter = (%d, %v), want (%d, %v)", n, err, len("hello"), ErrIsClosed)
-		}
-	})
-}
-
-func TestBufferCloseAndWaitReturnsOnContextCancelWithOpenReader(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		var r io.ReadCloser
-		var err error
-		if r, err = b.Reader(); err != nil {
-			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, err)
-		}
-		defer r.Close()
-
-		var cancel context.CancelFunc
-		var ctx context.Context
-		ctx, cancel = context.WithCancel(context.Background())
-		cancel()
-
-		var closeDone chan error
-		closeDone = make(chan error, 1)
-		go func() {
-			closeDone <- b.CloseAndWait(ctx)
-		}()
-
-		select {
-		case err = <-closeDone:
-			if err != nil {
-				t.Fatalf("CloseAndWait(cancelled) = %v, want nil", err)
-			}
-		case <-time.After(time.Second):
-			t.Fatalf("CloseAndWait(cancelled) did not return with open reader")
-		}
-	})
-}
-
-func TestBufferCloseAndWaitCancelStillClosesBufferState(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		var r io.ReadCloser
-		var err error
-		if r, err = b.Reader(); err != nil {
-			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, err)
-		}
-
-		var cancel context.CancelFunc
-		var ctx context.Context
-		ctx, cancel = context.WithTimeout(context.Background(), time.Nanosecond)
-		defer cancel()
-
-		if err = b.CloseAndWait(ctx); err != nil {
-			t.Fatalf("CloseAndWait(expired ctx) = %v, want nil", err)
-		}
-
-		var (
-			n int
-		)
-		n, err = b.Write([]byte("x"))
-		if err != ErrIsClosed || n != 0 {
-			t.Fatalf("Write after canceled CloseAndWait = (%d, %v), want (0, %v)", n, err, ErrIsClosed)
-		}
-
-		var rs io.ReadSeekCloser
-		rs, err = b.Reader()
-		if err != ErrIsClosed || rs != nil {
-			t.Fatalf("Reader after canceled CloseAndWait = (%v, %v), want (nil, %v)", rs, err, ErrIsClosed)
-		}
-
-		if err = r.Close(); err != nil {
-			t.Fatalf("reader Close = %v, want nil", err)
-		}
-	})
-}
-
-func TestNewWhenFileOpenFails(t *testing.T) {
-	type constructor struct {
-		name string
-		new  func(filepath string) (out *Buffer, err error)
+		wantErr bool
 	}
 
-	var tests []constructor
-	tests = []constructor{
+	tests := []testcase{
 		{
-			name: "file",
-			new:  New,
+			name: "missing parent directory",
+			init: func(t *testing.T) (filepath string, err error) {
+				t.Helper()
+				return t.TempDir() + "/missing-dir/buffer.tmp", nil
+			},
+			wantErr: true,
 		},
 		{
-			name: "read_only_file",
-			new:  NewReadOnly,
+			name: "empty filepath",
+			init: func(t *testing.T) (filepath string, err error) {
+				t.Helper()
+				return "", nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "writer opens but reader open fails",
+			init: func(t *testing.T) (filepath string, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "new-invalid-*"); err != nil {
+					return "", err
+				}
+
+				filepath = f.Name()
+
+				if err = f.Close(); err != nil {
+					return "", err
+				}
+
+				// Write-only file permissions allow newFile() to open the writer
+				// handle while causing the subsequent reader open to fail.
+				if err = os.Chmod(filepath, 0200); err != nil {
+					return "", err
+				}
+
+				return filepath, nil
+			},
+			wantErr: true,
 		},
 	}
-
-	var path string
-	path = filepath.Join(t.TempDir(), "missing", "streambuf.test")
 
 	for _, tt := range tests {
-		var tc constructor
-		tc = tt
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				filepath string
+				b        *Buffer
+				err      error
+			)
 
-		t.Run(tc.name, func(t *testing.T) {
+			if filepath, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if b, err = New(filepath); err != nil {
+				if !tt.wantErr {
+					t.Fatalf("New() unexpected error: %v", err)
+				}
+
+				return
+			}
+
+			if tt.wantErr {
+				t.Fatal("New() expected error, received <nil>")
+			}
+
+			t.Cleanup(func() {
+				_ = b.Close()
+			})
+		})
+	}
+}
+
+func Test_NewReadOnly_invalid_filepath(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		filepath string
+
+		wantErr bool
+	}
+
+	tests := []testcase{
+		{
+			name:     "missing file",
+			filepath: t.TempDir() + "/missing-file.tmp",
+			wantErr:  true,
+		},
+		{
+			name:     "empty filepath",
+			filepath: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			var (
 				b   *Buffer
 				err error
 			)
 
-			if b, err = tc.new(path); err == nil {
-				t.Fatalf("new(%q) = (%v, nil), want non-nil error", path, b)
+			if b, err = NewReadOnly(tt.filepath); err != nil {
+				if !tt.wantErr {
+					t.Fatalf("NewReadOnly() unexpected error: %v", err)
+				}
+
+				return
 			}
 
-			if b != nil {
-				t.Fatalf("new(%q) buffer = %v, want nil", path, b)
+			if tt.wantErr {
+				t.Fatal("NewReadOnly() expected error, received <nil>")
+			}
+
+			t.Cleanup(func() {
+				_ = b.Close()
+			})
+		})
+	}
+}
+
+func Test_Buffer_Write(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		wantErr error
+	}
+
+	testInput := []byte("This is our test input!")
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-write-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			wantErr: ErrCannotWriteToReadOnly,
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-write-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			wantErr: ErrCannotWriteToReadOnly,
+		},
+		{
+			name: "closed buffer",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+
+				b = NewMemory()
+				if err = b.Close(); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "closed waiter",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+
+				b = NewMemory()
+				if err = b.waiter.Close(); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				r      *reader
+				bs     []byte
+				gotN   int
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			gotN, gotErr = b.Write(testInput)
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("Write() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+
+			if gotErr != nil {
+				return
+			}
+
+			if gotN != len(testInput) {
+				t.Fatalf("Write() invalid n, expected <%v> and received <%v>", len(testInput), gotN)
+			}
+
+			r = newReader(b)
+			bs = make([]byte, len(testInput))
+			gotN, gotErr = r.Read(bs)
+			if gotErr != nil {
+				t.Fatalf("Read() unexpected error after Write(): %v", gotErr)
+			}
+
+			if gotN != len(testInput) {
+				t.Fatalf("Read() invalid n after Write(), expected <%v> and received <%v>", len(testInput), gotN)
+			}
+
+			if !bytes.Equal(bs, testInput) {
+				t.Fatalf("Read() invalid read value after Write(), expected <%v> and received <%v>", string(testInput), string(bs))
 			}
 		})
 	}
 }
 
-func TestNewWhenFileReadOpenFails(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("file permission semantics differ on windows")
+func Test_Buffer_Write_underlying_writer_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, b *Buffer)
+
+		wantErr error
 	}
 
-	path := filepath.Join(t.TempDir(), "streambuf.test")
+	testInput := []byte("This is our test input!")
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
 
-	var err error
-	if err = os.WriteFile(path, []byte("seed"), 0200); err != nil {
-		t.Fatalf("WriteFile(%q) = %v, want nil", path, err)
-	}
+				t.Helper()
 
-	if err = os.Chmod(path, 0200); err != nil {
-		t.Fatalf("Chmod(%q) = %v, want nil", path, err)
-	}
-
-	var b *Buffer
-	if b, err = New(path); err == nil {
-		t.Fatalf("New(%q) = (%v, nil), want non-nil error", path, b)
-	}
-
-	if b != nil {
-		t.Fatalf("New(%q) buffer = %v, want nil", path, b)
-	}
-}
-
-func TestBufferCloseAndWaitCancelDoesNotLeakWaitForReadersGoroutine(t *testing.T) {
-	var before int
-	before = runtime.NumGoroutine()
-
-	var i int
-	for i = 0; i < 64; i++ {
-		var b *Buffer
-		b = NewMemory()
-
-		var r io.ReadCloser
-		var readErr error
-		r, readErr = b.Reader()
-		if readErr != nil {
-			t.Fatalf("Reader() = (%v, %v), want (non-nil, nil)", r, readErr)
-		}
-
-		var cancel context.CancelFunc
-		var ctx context.Context
-		ctx, cancel = context.WithCancel(context.Background())
-		cancel()
-
-		if err := b.CloseAndWait(ctx); err != nil {
-			t.Fatalf("CloseAndWait = %v, want nil", err)
-		}
-
-		if err := r.Close(); err != nil {
-			t.Fatalf("reader Close = %v, want nil", err)
-		}
-	}
-
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		runtime.GC()
-
-		var after int
-		after = runtime.NumGoroutine()
-		if after <= before+8 {
-			return
-		}
-
-		time.Sleep(time.Millisecond * 10)
-	}
-
-	var after int
-	after = runtime.NumGoroutine()
-	t.Fatalf("goroutines after cancel-path close = %d, before = %d, delta = %d", after, before, after-before)
-}
-
-func TestBufferConcurrentWriteAndCloseAndWait(t *testing.T) {
-	runForEachBackend(t, func(t *testing.T, b *Buffer) {
-		const (
-			writerCount     = 16
-			writesPerWriter = 64
-		)
-
-		var start chan struct{}
-		start = make(chan struct{})
-
-		var wg sync.WaitGroup
-
-		var errs chan error
-		errs = make(chan error, writerCount*writesPerWriter+1)
-
-		var i int
-		for i = 0; i < writerCount; i++ {
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				<-start
-
-				var j int
-				for j = 0; j < writesPerWriter; j++ {
-					if _, err := b.Write([]byte("x")); err != nil && err != ErrIsClosed {
-						errs <- err
-						return
-					}
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
 				}
-			}()
-		}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
+				t.Helper()
 
-			var cancel context.CancelFunc
-			var ctx context.Context
-			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-write-writer-closed-*"); err != nil {
+					return nil, err
+				}
 
-			errs <- b.CloseAndWait(ctx)
-		}()
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
 
-		close(start)
-		wg.Wait()
-		close(errs)
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
 
-		for err := range errs {
-			if err != nil {
-				t.Fatalf("concurrent Write/CloseAndWait error = %v, want nil", err)
+				// If setup closes the raw writer handle, Buffer.Close() may return
+				// early without closing the reader handle. Clean up the reader here.
+				t.Cleanup(func() {
+					_ = b.b.CloseReader()
+				})
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				// readOnlyMemory.CloseWriter() is a no-op and always succeeds.
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrCannotWriteToReadOnly,
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-write-writer-closed-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				// readOnlyFile.CloseWriter() is a no-op and always succeeds.
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrCannotWriteToReadOnly,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				gotN   int
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
 			}
-		}
-	})
+
+			if tt.setup != nil {
+				tt.setup(t, b)
+			}
+
+			gotN, gotErr = b.Write(testInput)
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("Write() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+
+			if gotErr != nil {
+				if gotN != 0 {
+					t.Fatalf("Write() invalid n, expected <0> and received <%v>", gotN)
+				}
+
+				return
+			}
+
+			t.Fatal("Write() expected error, received <nil>")
+		})
+	}
+}
+
+func Test_Buffer_Reader(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		wantErr error
+	}
+
+	testInput := []byte("This is our test input!")
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-reader-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+		},
+		{
+			name: "read only memory with preloaded bytes",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(append([]byte(nil), testInput...)), nil
+			},
+		},
+		{
+			name: "read only file with preloaded bytes",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-reader-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if _, err = f.Write(testInput); err != nil {
+					_ = f.Close()
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+		},
+		{
+			name: "closed buffer",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+
+				b = NewMemory()
+				if err = b.Close(); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				r      io.ReadSeekCloser
+				bs     []byte
+				gotN   int
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			b.Write(testInput)
+
+			r, gotErr = b.Reader()
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("Reader() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+
+			if gotErr != nil {
+				return
+			}
+
+			t.Cleanup(func() {
+				_ = r.Close()
+			})
+
+			bs = make([]byte, len(testInput))
+			gotN, gotErr = r.Read(bs)
+			if gotErr != nil {
+				t.Fatalf("Read() unexpected error from Reader(): %v", gotErr)
+			}
+
+			if gotN != len(testInput) {
+				t.Fatalf("Read() invalid n from Reader(), expected <%v> and received <%v>", len(testInput), gotN)
+			}
+
+			if !bytes.Equal(bs, testInput) {
+				t.Fatalf("Read() invalid read value from Reader(), expected <%v> and received <%v>", string(testInput), string(bs))
+			}
+		})
+	}
+}
+
+func Test_Buffer_CloseAndWait(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, b *Buffer)
+
+		ctx context.Context
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			ctx: context.Background(),
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			ctx: context.Background(),
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			ctx: context.Background(),
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			ctx: context.Background(),
+		},
+		{
+			name: "closed buffer",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+
+				b = NewMemory()
+				if err = b.Close(); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			ctx:     context.Background(),
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "closed waiter",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+
+				b = NewMemory()
+				if err = b.waiter.Close(); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			ctx:     context.Background(),
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "reader open and canceled context",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var (
+					r   io.ReadSeekCloser
+					err error
+				)
+
+				t.Helper()
+
+				if r, err = b.Reader(); err != nil {
+					t.Fatalf("setup Reader() unexpected error: %v", err)
+				}
+
+				t.Cleanup(func() {
+					_ = r.Close()
+				})
+			},
+			ctx: expiredContext,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.setup != nil {
+				tt.setup(t, b)
+			}
+
+			gotErr = b.CloseAndWait(tt.ctx)
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("CloseAndWait() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+		})
+	}
+}
+
+func Test_Buffer_CloseAndWait_underlying_writer_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, b *Buffer)
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-writer-closed-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				// CloseAndWait() returns before closing the reader when CloseWriter()
+				// fails, so close the file reader handle explicitly for this test.
+				t.Cleanup(func() {
+					_ = b.b.CloseReader()
+				})
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				// readOnlyMemory.CloseWriter() is a no-op and always succeeds.
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			name: "read only memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewReadOnlyMemory(nil), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-writer-closed-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				// readOnlyFile.CloseWriter() is a no-op and always succeeds.
+				if err = b.b.CloseWriter(); err != nil {
+					t.Fatalf("setup CloseWriter() unexpected error: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.setup != nil {
+				tt.setup(t, b)
+			}
+
+			gotErr = b.CloseAndWait(context.Background())
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("CloseAndWait() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+		})
+	}
+}
+
+func Test_Buffer_CloseAndWait_underlying_reader_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		setup func(t *testing.T, b *Buffer)
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-reader-closed-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "read only file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-close-and-wait-reader-closed-read-only-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = NewReadOnly(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+			setup: func(t *testing.T, b *Buffer) {
+				var err error
+
+				t.Helper()
+
+				if err = b.b.CloseReader(); err != nil {
+					t.Fatalf("setup CloseReader() unexpected error: %v", err)
+				}
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.setup != nil {
+				tt.setup(t, b)
+			}
+
+			gotErr = b.CloseAndWait(context.Background())
+			if !isEqualErrors(gotErr, tt.wantErr) {
+				t.Fatalf("CloseAndWait() invalid error, expected <%v> and received <%v>", tt.wantErr, gotErr)
+			}
+		})
+	}
 }
