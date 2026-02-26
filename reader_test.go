@@ -166,6 +166,103 @@ func Test_reader_Read_zero_length_input(t *testing.T) {
 	}
 }
 
+func Test_reader_Read_closed_reader_while_waiting(t *testing.T) {
+	type readResult struct {
+		n   int
+		err error
+	}
+
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+
+		wantErr error
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+			wantErr: ErrIsClosed,
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "reader-read-close-wait-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				t.Cleanup(func() {
+					_ = b.Close()
+				})
+
+				return b, nil
+			},
+			wantErr: ErrIsClosed,
+		},
+	}
+
+	// Read-only backends are not included here because an empty read on them
+	// returns ErrIsClosed from the backend directly instead of blocking in Read().
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b       *Buffer
+				err     error
+				r       *reader
+				bs      []byte
+				results chan readResult
+				got     readResult
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			r = newReader(b)
+			b.wg.Add(1)
+
+			bs = make([]byte, 1)
+			results = make(chan readResult, 1)
+
+			go func() {
+				var out readResult
+				out.n, out.err = r.Read(bs)
+				results <- out
+			}()
+
+			if err = r.Close(); err != nil {
+				t.Fatalf("Close() unexpected error: %v", err)
+			}
+
+			got = <-results
+			if !isEqualErrors(got.err, tt.wantErr) {
+				t.Fatalf("Read() invalid error, expected <%v> and received <%v>", tt.wantErr, got.err)
+			}
+
+			if got.n != 0 {
+				t.Fatalf("Read() invalid n, expected <0> and received <%v>", got.n)
+			}
+		})
+	}
+}
+
 func Test_reader_Seek(t *testing.T) {
 	type testcase struct {
 		name string // description of this test case
