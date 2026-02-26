@@ -12,30 +12,39 @@ var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
 // New constructs a new file Buffer.
 func New(filepath string) (out *Buffer, err error) {
-	var b Buffer
-	if b.b, err = newFile(filepath); err != nil {
+	var b backend
+	if b, err = newFile(filepath); err != nil {
 		return
 	}
 
-	b.waiter = newWaiter()
-	return &b, nil
+	return newWithBackend(b), nil
 }
 
 // NewReadOnly constructs a new read-only file Buffer.
 func NewReadOnly(filepath string) (out *Buffer, err error) {
-	var b Buffer
-	if b.b, err = newReadOnlyFile(filepath); err != nil {
+	var b backend
+	if b, err = newReadOnlyFile(filepath); err != nil {
 		return
 	}
 
-	b.waiter = newWaiter()
-	return &b, nil
+	return newWithBackend(b), nil
 }
 
 // NewMemory constructs a new in-memory Buffer.
 func NewMemory() (out *Buffer) {
+	b := newMemory()
+	return newWithBackend(b)
+}
+
+// NewMemory constructs a new in-memory Buffer.
+func NewReadOnlyMemory(bs []byte) (out *Buffer) {
+	b := newReadOnlyMemory(bs)
+	return newWithBackend(b)
+}
+
+func newWithBackend(be backend) (out *Buffer) {
 	var b Buffer
-	b.b = newMemory()
+	b.b = be
 	b.waiter = newWaiter()
 	return &b
 }
