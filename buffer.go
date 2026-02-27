@@ -10,7 +10,7 @@ import (
 func New(filepath string) (out *Buffer, err error) {
 	var b backend
 	if b, err = newFile(filepath); err != nil {
-		return
+		return nil, err
 	}
 
 	return newWithBackend(b), nil
@@ -20,7 +20,7 @@ func New(filepath string) (out *Buffer, err error) {
 func NewReadOnly(filepath string) (out *Buffer, err error) {
 	var b backend
 	if b, err = newReadOnlyFile(filepath); err != nil {
-		return
+		return nil, err
 	}
 
 	return newWithBackend(b), nil
@@ -62,14 +62,14 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 	b.mux.RLock()
 	defer b.mux.RUnlock()
 	if n, err = b.b.Write(bs); err != nil {
-		return
+		return n, err
 	}
 
 	if err = b.waiter.Refresh(); err != nil {
-		return
+		return n, err
 	}
 
-	return
+	return n, err
 }
 
 // Reader returns a new io.ReadSeekCloser that streams data from the buffer.
@@ -109,11 +109,11 @@ func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 	b.closed = true
 
 	if err = b.b.CloseWriter(); err != nil {
-		return
+		return err
 	}
 
 	if err = b.waiter.Close(); err != nil {
-		return
+		return err
 	}
 
 	b.waitUntilDone(ctx)

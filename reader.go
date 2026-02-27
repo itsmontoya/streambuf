@@ -82,7 +82,7 @@ func (r *reader) Seek(offset int64, whence int) (pos int64, err error) {
 // Subsequent Read calls return ErrIsClosed when no bytes are read.
 func (r *reader) Close() (err error) {
 	if err = r.closer.Close(); err != nil {
-		return
+		return err
 	}
 
 	r.b.wg.Done()
