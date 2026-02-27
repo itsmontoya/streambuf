@@ -381,11 +381,21 @@ i++
 * Avoid clever test abstractions.
 
 ```go
-func TestParse(t *testing.T) {
-    type tc struct {
-        name  string
-        input string
-        ok    bool
+func Test_Buffer_Write(t *testing.T) {
+    type testcase struct {
+        name string
+        // Additional needed fields here.
+    }
+
+    testInput := []byte("hello world")
+    tests := []testcase{
+        // Test cases go here.
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Test logic goes here.
+        })
     }
 }
 ```
