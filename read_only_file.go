@@ -1,6 +1,7 @@
 package streambuf
 
 import (
+	"fmt"
 	"os"
 	"sync"
 )
@@ -9,7 +10,7 @@ import (
 func newReadOnlyFile(filepath string) (out *readOnlyFile, err error) {
 	var f readOnlyFile
 	if f.r, err = os.Open(filepath); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open reader file: %w", err)
 	}
 
 	return &f, nil
@@ -41,7 +42,7 @@ func (f *readOnlyFile) ReadAt(in []byte, index int64) (n int, err error) {
 	case f.closed:
 		return 0, ErrIsClosed
 	default:
-		return 0, err
+		return 0, fmt.Errorf("read reader file at index %d: %w", index, err)
 	}
 }
 
@@ -59,5 +60,9 @@ func (f *readOnlyFile) CloseReader() (err error) {
 	}
 
 	f.closed = true
-	return f.r.Close()
+	if err = f.r.Close(); err != nil {
+		return fmt.Errorf("close reader file: %w", err)
+	}
+
+	return nil
 }
