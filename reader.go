@@ -1,6 +1,9 @@
 package streambuf
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
 var _ io.ReadSeekCloser = &reader{}
 
@@ -38,7 +41,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 			r.index += int64(n)
 			return n, err
 		case err == nil:
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 
 		default:
 			return 0, err
