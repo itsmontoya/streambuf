@@ -1,6 +1,7 @@
 package streambuf
 
 import (
+	"fmt"
 	"os"
 	"sync"
 )
@@ -9,12 +10,12 @@ import (
 func newFile(filepath string) (out *file, err error) {
 	var f file
 	if f.w, err = os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open writer file: %w", err)
 	}
 
 	if f.r, err = os.Open(filepath); err != nil {
 		f.w.Close()
-		return nil, err
+		return nil, fmt.Errorf("open reader file: %w", err)
 	}
 
 	return &f, nil
@@ -54,7 +55,7 @@ func (f *file) ReadAt(in []byte, index int64) (n int, err error) {
 	case f.writerClosed:
 		return 0, ErrIsClosed
 	default:
-		return 0, err
+		return 0, fmt.Errorf("read reader file at index %d: %w", index, err)
 	}
 }
 
@@ -68,7 +69,11 @@ func (f *file) CloseWriter() (err error) {
 
 	f.writerClosed = true
 
-	return f.w.Close()
+	if err = f.w.Close(); err != nil {
+		return fmt.Errorf("close writer file: %w", err)
+	}
+
+	return nil
 }
 
 // CloseReader marks the file backend reader as closed and closes its file handle.
@@ -81,5 +86,9 @@ func (f *file) CloseReader() (err error) {
 
 	f.readerClosed = true
 
-	return f.r.Close()
+	if err = f.r.Close(); err != nil {
+		return fmt.Errorf("close reader file: %w", err)
+	}
+
+	return nil
 }
