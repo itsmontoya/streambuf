@@ -27,6 +27,31 @@ Each primary type gets its own file.
 
 All methods belonging to a type must live in the same file as the type definition.
 
+## Constructor Placement
+
+Place constructor/initializer functions directly above the type they construct.
+
+### Why
+
+* Keeps navigation predictable.
+* Makes type entry points obvious during review.
+
+### Preferred
+
+```go
+func NewService(store Store) (s *Service) { ... }
+
+type Service struct { ... }
+```
+
+### Avoid
+
+```go
+type Service struct { ... }
+
+func NewService(store Store) (s *Service) { ... }
+```
+
 ### Why
 
 * Makes navigation trivial.
@@ -46,17 +71,17 @@ store.go
 ```go
 // service.go
 
-// Service coordinates request handling and persistence.
-type Service struct {
-    store Store
-}
-
 // NewService constructs a Service with the provided Store.
 func NewService(store Store) (s *Service) {
     s = &Service{
         store: store,
     }
     return s
+}
+
+// Service coordinates request handling and persistence.
+type Service struct {
+    store Store
 }
 
 // Handle processes the incoming request.
@@ -97,7 +122,7 @@ Avoid stutter:
 
 # Variable Declarations
 
-## Prefer var over :=
+## Prefer var over := (with narrow exceptions)
 
 We prefer explicit variable declarations.
 
@@ -120,7 +145,43 @@ var (
 timeout := 5 * time.Second
 ```
 
-Use := only when it meaningfully improves clarity in tight scopes.
+Use `:=` only when it meaningfully improves clarity in tight scopes and the declaration is simple.
+
+### Use := for simple local declarations
+
+`:=` is acceptable when all of the following are true:
+
+* The declaration is local and close to first use.
+* The right-hand side is short and obvious.
+* The variable has no ambiguity in meaning or type.
+* The statement does not risk shadowing an existing variable.
+
+Preferred examples:
+
+```go
+b := newMemory()
+done := make(chan struct{}, 1)
+if v, ok := m[key]; ok {
+    return v, nil
+}
+```
+
+### Use var for shared, reused, or stateful values
+
+Use `var` when the variable is reused across branches, needs a zero-value declaration, or benefits from explicit grouping.
+
+Preferred examples:
+
+```go
+var (
+    b   backend
+    err error
+)
+
+if b, err = newFile(filepath); err != nil {
+    return nil, err
+}
+```
 
 ### Acceptable
 
@@ -173,6 +234,11 @@ func Parse(input string) (result Result, err error) {
 ## No Naked Returns
 
 Even with named returns, never use naked return.
+
+Scope note:
+
+* This rule applies to functions with named return values.
+* Early bare `return` is acceptable in `func(...){}` blocks that return no values (common in tests).
 
 ### Why
 
@@ -237,7 +303,9 @@ Do not split methods across files. Extract types instead.
 # Error Handling
 
 * Handle errors immediately.
-* Add context when returning errors.
+* For external/operation errors (IO, filesystem, network, system calls), context is required.
+* Errors from calls like `os.Open`, `os.OpenFile`, `Read`, `Write`, and `Close` must be wrapped with context via `%w` when returned.
+* Return sentinel contract/state errors directly when they are already descriptive.
 
 ```go
 if err != nil {
@@ -246,6 +314,14 @@ if err != nil {
 ```
 
 Avoid swallowing errors.
+
+Sentinel example:
+
+```go
+if closed {
+    return ErrIsClosed
+}
+```
 
 # Interfaces
 
@@ -267,7 +343,8 @@ Avoid swallowing errors.
 * Explain why, not what.
 * Keep comments concise. Err on the side of brevity.
 * Avoid restating obvious code.
-* Private functions should only be commented when the intent is non-obvious.
+* Private functions may be commented consistently for navigation and readability.
+* Private-function comments must stay concise and non-redundant.
 * Comments should rarely exceed a few short lines unless documenting complex behavior.
 
 ### GoDoc Example
@@ -325,7 +402,7 @@ Before opening a PR:
 * [ ] No naked returns
 * [ ] Prefer var over :=
 * [ ] No shadowing
-* [ ] Errors include context
+* [ ] External/operation errors include context
+* [ ] Sentinel/state errors remain direct
 * [ ] Exported symbols have GoDoc comments
 * [ ] Tests cover behavior
-
