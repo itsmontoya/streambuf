@@ -2,13 +2,9 @@ package streambuf
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 )
-
-// ErrIsClosed is returned when an action is attempted on a closed instance.
-var ErrIsClosed = errors.New("cannot perform action on closed instance")
 
 // New constructs a new file Buffer.
 func New(filepath string) (out *Buffer, err error) {
