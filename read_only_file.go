@@ -1,13 +1,9 @@
 package streambuf
 
 import (
-	"errors"
 	"os"
 	"sync"
 )
-
-// ErrCannotWriteToReadOnly is returned when a write is attempted on a read-only backend.
-var ErrCannotWriteToReadOnly = errors.New("cannot write to read-only backend")
 
 // newReadOnlyFile constructs a readOnlyFile backend for an existing file path.
 func newReadOnlyFile(filepath string) (out *readOnlyFile, err error) {

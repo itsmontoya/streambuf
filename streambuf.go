@@ -16,6 +16,8 @@ var (
 	// ErrNegativeIndex is returned when a seek would move before byte index 0.
 	// The reader position is clamped to 0 in this case.
 	ErrNegativeIndex = errors.New("invalid index, cannot be less than 0")
+	// ErrCannotWriteToReadOnly is returned when a write is attempted on a read-only backend.
+	ErrCannotWriteToReadOnly = errors.New("cannot write to read-only backend")
 	// ErrIsClosed is returned when an action is attempted on a closed instance.
 	ErrIsClosed = errors.New("cannot perform action on closed instance")
 )
