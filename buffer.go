@@ -22,7 +22,7 @@ func New(filepath string) (out *Buffer, err error) {
 // NewMemory constructs a new in-memory Buffer.
 func NewMemory() (out *Buffer) {
 	w := newWritableMemory(nil)
-	r := newReadableMemory(&w.bs)
+	r := newReadableMemory(w.m)
 	return newWithBackend(w, r)
 }
 

@@ -19,9 +19,9 @@ func NewStream(filepath string) (out *Stream, err error) {
 }
 
 // NewMemoryStream constructs a read-only memory-backed Stream over bs.
-func NewMemoryStream(bs *[]byte) (out *Stream) {
+func NewMemoryStream(bs []byte) (out *Stream) {
 	var s Stream
-	r := newReadableMemory(bs)
+	r := newReadableMemory(newMemory(bs))
 	s.stream = newStreamWithReadable(r)
 	return &s
 }

@@ -13,7 +13,7 @@ func newWritableMemory(bs []byte) (out *writableMemory) {
 		bs = make([]byte, 0, 1024)
 	}
 
-	m.bs = bs
+	m.m = newMemory(bs)
 	return &m
 }
 
@@ -21,21 +21,24 @@ func newWritableMemory(bs []byte) (out *writableMemory) {
 type writableMemory struct {
 	mux sync.RWMutex
 
-	bs []byte
+	m *memory
 
 	closed bool
 }
 
 // Write appends bytes to the backend unless it is closed.
-func (m *writableMemory) Write(bs []byte) (n int, err error) {
+func (m *writableMemory) Write(in []byte) (n int, err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.closed {
 		return 0, ErrIsClosed
 	}
 
-	m.bs = append(m.bs, bs...)
-	return len(bs), nil
+	m.m.write(func(bs []byte) (out []byte) {
+		return append(bs, in...)
+	})
+
+	return len(in), nil
 }
 
 // Close marks the writable memory backend as closed and releases its byte slice.
@@ -47,6 +50,6 @@ func (m *writableMemory) Close() (err error) {
 	}
 
 	m.closed = true
-	m.bs = nil
+	m.m = nil
 	return nil
 }
