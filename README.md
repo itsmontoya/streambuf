@@ -16,6 +16,8 @@ It allows a single writer to continuously append bytes to a buffer, while any nu
 
 The buffer can be backed by memory or by a file, making it suitable for both lightweight in-memory streaming and durable, disk-backed use cases.
 
+In practice, this is useful when you want more than "a mutex around an `io.Writer`". A plain writer gives you serialized writes, but it does not give each consumer its own read cursor, late-joining readers, coordinated blocking reads, or a shared file-backed stream that avoids opening separate descriptors per reader.
+
 ## Motivation
 
 Go’s standard library provides excellent primitives for streaming (`io.Reader`, `io.Writer`, `bufio`, channels), but it lacks a native abstraction for:
@@ -36,6 +38,33 @@ This pattern shows up frequently in systems programming, including:
 - Event feeds
 - Streaming ingestion systems
 - Testing and replay of streamed data
+
+## Why This Exists
+
+It is reasonable to ask: why not just protect an `io.Writer` with a mutex?
+
+That solves a different problem.
+
+A mutex around a writer helps multiple goroutines write safely, but it does not provide:
+
+- Independent readers with their own offsets
+- Readers that can join after data has already been written
+- Reads that block until more data arrives
+- A single shared file-backed source for many readers
+
+`streambuf` is for cases where one side is continuously appending data and many readers need to observe the same ordered byte stream without consuming it from each other.
+
+## Example Use Case
+
+Imagine a service that receives a live byte stream from one upstream connection and needs to expose it to several downstream consumers:
+
+- One consumer forwards the stream to an HTTP client
+- One consumer writes it to disk for later replay
+- One consumer parses it for metrics or events
+
+With a normal `io.Writer`, you still need to build the fan-out, track read positions, and coordinate blocking behavior yourself.
+
+With `streambuf`, the producer writes once, each consumer gets its own reader, and a file-backed buffer can keep everything on a single shared file descriptor instead of opening one per consumer.
 
 ## Examples
 
