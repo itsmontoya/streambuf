@@ -53,45 +53,6 @@ func Test_reader_Read(t *testing.T) {
 			},
 		},
 		{
-			name: "read only memory with preloaded bytes",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-
-				return NewReadOnlyMemory(append([]byte(nil), testInput...)), nil
-			},
-		},
-		{
-			name: "read only file with preloaded bytes",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				var f *os.File
-
-				t.Helper()
-
-				if f, err = os.CreateTemp(t.TempDir(), "reader-read-only-*"); err != nil {
-					return nil, err
-				}
-
-				if _, err = f.Write(testInput); err != nil {
-					_ = f.Close()
-					return nil, err
-				}
-
-				if err = f.Close(); err != nil {
-					return nil, err
-				}
-
-				if b, err = NewReadOnly(f.Name()); err != nil {
-					return nil, err
-				}
-
-				t.Cleanup(func() {
-					_ = b.Close()
-				})
-
-				return b, nil
-			},
-		},
-		{
 			name: "closed buffer before read",
 			init: func(t *testing.T) (b *Buffer, err error) {
 				t.Helper()
@@ -120,7 +81,7 @@ func Test_reader_Read(t *testing.T) {
 
 			b.Write(testInput)
 
-			r := newReader(b)
+			r := newReader(b.stream)
 			bs := make([]byte, len(testInput))
 			gotN, gotErr := r.Read(bs)
 			if !isEqualErrors(gotErr, tt.wantErr) {
@@ -154,7 +115,7 @@ func Test_reader_Read_zero_length_input(t *testing.T) {
 	// Zero-length reads return before interacting with the backend, so this
 	// behavior is backend-independent and only needs one simple backend setup.
 	b = NewMemory()
-	r = newReader(b)
+	r = newReader(b.stream)
 	bs = make([]byte, 0)
 	gotN, gotErr = r.Read(bs)
 
@@ -236,7 +197,7 @@ func Test_reader_Read_closed_reader_while_waiting(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b)
+			r = newReader(b.stream)
 			b.wg.Add(1)
 
 			bs = make([]byte, 1)
@@ -310,46 +271,6 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 			},
 			wantErr: ErrIsClosed,
 		},
-		{
-			name: "read only memory with preloaded bytes",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-				return NewReadOnlyMemory(append([]byte(nil), testInput...)), nil
-			},
-			wantErr: ErrIsClosed,
-		},
-		{
-			name: "read only file with preloaded bytes",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				var f *os.File
-
-				t.Helper()
-
-				if f, err = os.CreateTemp(t.TempDir(), "reader-read-eof-closed-read-only-*"); err != nil {
-					return nil, err
-				}
-
-				if _, err = f.Write(testInput); err != nil {
-					_ = f.Close()
-					return nil, err
-				}
-
-				if err = f.Close(); err != nil {
-					return nil, err
-				}
-
-				if b, err = NewReadOnly(f.Name()); err != nil {
-					return nil, err
-				}
-
-				t.Cleanup(func() {
-					_ = b.Close()
-				})
-
-				return b, nil
-			},
-			wantErr: ErrIsClosed,
-		},
 	}
 
 	for _, tt := range tests {
@@ -370,7 +291,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 
 			b.Write(testInput)
 
-			r = newReader(b)
+			r = newReader(b.stream)
 			bs = make([]byte, len(testInput))
 			gotN, gotErr = r.Read(bs)
 			if gotErr != nil {
@@ -490,59 +411,6 @@ func Test_reader_Read_no_bytes_available_not_closed(t *testing.T) {
 			},
 			wantN: len(testInput),
 		},
-		{
-			name: "read only memory",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-				return NewReadOnlyMemory(nil), nil
-			},
-			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
-				var err error
-
-				t.Helper()
-
-				if err = b.Close(); err != nil {
-					t.Fatalf("Close() unexpected error: %v", err)
-				}
-			},
-			wantErr: ErrIsClosed,
-		},
-		{
-			name: "read only file empty",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				var f *os.File
-
-				t.Helper()
-
-				if f, err = os.CreateTemp(t.TempDir(), "reader-read-wait-read-only-*"); err != nil {
-					return nil, err
-				}
-
-				if err = f.Close(); err != nil {
-					return nil, err
-				}
-
-				if b, err = NewReadOnly(f.Name()); err != nil {
-					return nil, err
-				}
-
-				t.Cleanup(func() {
-					_ = b.Close()
-				})
-
-				return b, nil
-			},
-			unblock: func(t *testing.T, b *Buffer, testInput []byte) {
-				var err error
-
-				t.Helper()
-
-				if err = b.Close(); err != nil {
-					t.Fatalf("Close() unexpected error: %v", err)
-				}
-			},
-			wantErr: ErrIsClosed,
-		},
 	}
 
 	for _, tt := range tests {
@@ -560,7 +428,7 @@ func Test_reader_Read_no_bytes_available_not_closed(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b)
+			r = newReader(b.stream)
 			bs = make([]byte, len(testInput))
 			results = make(chan readResult, 1)
 
@@ -675,63 +543,6 @@ func Test_reader_Seek(t *testing.T) {
 			wantPos: 5,
 		},
 		{
-			name: "read only memory seek current backward clamped to zero",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-				return NewReadOnlyMemory(nil), nil
-			},
-			setup: func(t *testing.T, r *reader) {
-				var (
-					pos int64
-					err error
-				)
-
-				t.Helper()
-
-				if pos, err = r.Seek(3, io.SeekStart); err != nil {
-					t.Fatalf("setup Seek() unexpected error: %v", err)
-				}
-
-				if pos != 3 {
-					t.Fatalf("setup Seek() invalid pos, expected <3> and received <%v>", pos)
-				}
-			},
-			offset:  -10,
-			whence:  io.SeekCurrent,
-			wantPos: 0,
-			wantErr: ErrNegativeIndex,
-		},
-		{
-			name: "read only file seek start negative clamped to zero",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				var f *os.File
-
-				t.Helper()
-
-				if f, err = os.CreateTemp(t.TempDir(), "reader-seek-read-only-*"); err != nil {
-					return nil, err
-				}
-
-				if err = f.Close(); err != nil {
-					return nil, err
-				}
-
-				if b, err = NewReadOnly(f.Name()); err != nil {
-					return nil, err
-				}
-
-				t.Cleanup(func() {
-					_ = b.Close()
-				})
-
-				return b, nil
-			},
-			offset:  -1,
-			whence:  io.SeekStart,
-			wantPos: 0,
-			wantErr: ErrNegativeIndex,
-		},
-		{
 			name: "seek end not supported",
 			init: func(t *testing.T) (b *Buffer, err error) {
 				t.Helper()
@@ -769,7 +580,7 @@ func Test_reader_Seek(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b)
+			r = newReader(b.stream)
 			if tt.setup != nil {
 				tt.setup(t, r)
 			}
@@ -832,39 +643,6 @@ func Test_reader_Close(t *testing.T) {
 			},
 		},
 		{
-			name: "read only memory",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-				return NewReadOnlyMemory(nil), nil
-			},
-		},
-		{
-			name: "read only file",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				var f *os.File
-
-				t.Helper()
-
-				if f, err = os.CreateTemp(t.TempDir(), "reader-close-read-only-*"); err != nil {
-					return nil, err
-				}
-
-				if err = f.Close(); err != nil {
-					return nil, err
-				}
-
-				if b, err = NewReadOnly(f.Name()); err != nil {
-					return nil, err
-				}
-
-				t.Cleanup(func() {
-					_ = b.Close()
-				})
-
-				return b, nil
-			},
-		},
-		{
 			name: "already closed reader",
 			init: func(t *testing.T) (b *Buffer, err error) {
 				t.Helper()
@@ -896,7 +674,7 @@ func Test_reader_Close(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b)
+			r = newReader(b.stream)
 			b.wg.Add(1)
 
 			if tt.setup != nil {
