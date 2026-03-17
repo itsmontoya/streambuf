@@ -28,6 +28,11 @@ func ExampleNewMemory() {
 	exampleBuffer = NewMemory()
 }
 
+func ExampleNewMemoryStream() {
+	bs := []byte("hello world")
+	exampleStream = NewMemoryStream(&bs)
+}
+
 func ExampleBuffer_Write() {
 	if _, err := exampleBuffer.Write([]byte("hello world")); err != nil {
 		log.Fatal(err)

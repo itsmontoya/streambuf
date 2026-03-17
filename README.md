@@ -69,6 +69,14 @@ func ExampleNewMemory() {
 }
 ```
 
+### NewMemoryStream
+```go
+func ExampleNewMemoryStream() {
+	bs := []byte("hello world")
+	exampleStream = NewMemoryStream(&bs)
+}
+```
+
 ### Buffer.Write
 ```go
 func ExampleBuffer_Write() {
