@@ -72,7 +72,7 @@ func Test_Stream_Reader(t *testing.T) {
 			name: "memory with preloaded bytes",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(testInput), nil
+				return NewMemoryStream(testInput), nil
 			},
 		},
 		{
@@ -87,7 +87,7 @@ func Test_Stream_Reader(t *testing.T) {
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
 
-				s = newTestMemoryStream(nil)
+				s = NewMemoryStream(nil)
 				if err = s.Close(); err != nil {
 					return nil, err
 				}
@@ -158,7 +158,7 @@ func Test_Stream_Reader_no_more_bytes_and_stream_closed(t *testing.T) {
 			name: "memory with preloaded bytes",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(testInput), nil
+				return NewMemoryStream(testInput), nil
 			},
 			wantErr: ErrIsClosed,
 		},
@@ -246,7 +246,7 @@ func Test_Stream_Reader_no_bytes_available_not_closed(t *testing.T) {
 			name: "empty memory stream",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			wantErr: ErrIsClosed,
 		},
@@ -339,7 +339,7 @@ func Test_Stream_Reader_seek(t *testing.T) {
 			name: "memory seek current backward clamped to zero",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			setup: func(t *testing.T, r io.ReadSeekCloser) {
 				var (
@@ -429,7 +429,7 @@ func Test_Stream_Reader_close(t *testing.T) {
 			name: "memory",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 		},
 		{
@@ -443,7 +443,7 @@ func Test_Stream_Reader_close(t *testing.T) {
 			name: "already closed reader",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			setup: func(t *testing.T, r io.ReadSeekCloser) {
 				var err error
@@ -505,7 +505,7 @@ func Test_Stream_CloseAndWait(t *testing.T) {
 			name: "memory",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			ctx: context.Background(),
 		},
@@ -522,7 +522,7 @@ func Test_Stream_CloseAndWait(t *testing.T) {
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
 
-				s = newTestMemoryStream(nil)
+				s = NewMemoryStream(nil)
 				if err = s.Close(); err != nil {
 					return nil, err
 				}
@@ -537,7 +537,7 @@ func Test_Stream_CloseAndWait(t *testing.T) {
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
 
-				s = newTestMemoryStream(nil)
+				s = NewMemoryStream(nil)
 				if err = s.waiter.Close(); err != nil {
 					return nil, err
 				}
@@ -551,7 +551,7 @@ func Test_Stream_CloseAndWait(t *testing.T) {
 			name: "reader open and canceled context",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			setup: func(t *testing.T, s *Stream) {
 				var (
@@ -613,7 +613,7 @@ func Test_Stream_CloseAndWait_underlying_reader_closed(t *testing.T) {
 			name: "memory",
 			init: func(t *testing.T) (s *Stream, err error) {
 				t.Helper()
-				return newTestMemoryStream(nil), nil
+				return NewMemoryStream(nil), nil
 			},
 			setup: func(t *testing.T, s *Stream) {
 				var err error
@@ -667,10 +667,6 @@ func Test_Stream_CloseAndWait_underlying_reader_closed(t *testing.T) {
 			}
 		})
 	}
-}
-
-func newTestMemoryStream(in []byte) (out *Stream) {
-	return NewMemoryStream(&in)
 }
 
 func newTestFileStream(t *testing.T, prefix string, in []byte) (out *Stream, err error) {
