@@ -30,7 +30,7 @@ func ExampleNewMemory() {
 
 func ExampleNewMemoryStream() {
 	bs := []byte("hello world")
-	exampleStream = NewMemoryStream(&bs)
+	exampleStream = NewMemoryStream(bs)
 }
 
 func ExampleBuffer_Write() {
