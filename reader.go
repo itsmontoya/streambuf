@@ -7,17 +7,17 @@ import (
 
 var _ io.ReadSeekCloser = &reader{}
 
-// newReader constructs a reader bound to a Buffer.
-func newReader(b *Buffer) (out *reader) {
+// newReader constructs a reader bound to a shared stream.
+func newReader(s *stream) (out *reader) {
 	var r reader
-	r.b = b
+	r.s = s
 	r.closer = newWaiter()
 	return &r
 }
 
-// reader streams bytes from a Buffer while tracking read position.
+// reader streams bytes while tracking its own read position.
 type reader struct {
-	b *Buffer
+	s *stream
 
 	index int64
 
@@ -25,9 +25,9 @@ type reader struct {
 }
 
 // Read copies available bytes into in and blocks until data is written,
-// the buffer is closed, or the reader is closed.
+// the stream is closed, or the reader is closed.
 // A zero-length read returns (0, nil) immediately.
-// When no bytes are read, it returns ErrIsClosed after either the buffer
+// When no bytes are read, it returns ErrIsClosed after either the stream
 // closes or the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
 	if len(in) == 0 {
@@ -35,7 +35,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 	}
 
 	for {
-		n, err = r.b.b.ReadAt(in, r.index)
+		n, err = r.s.r.ReadAt(in, r.index)
 		switch {
 		case n > 0:
 			r.index += int64(n)
@@ -50,9 +50,8 @@ func (r *reader) Read(in []byte) (n int, err error) {
 		select {
 		case <-r.closer.Wait():
 			return 0, ErrIsClosed
-		case <-r.b.waiter.Wait():
+		case <-r.s.waiter.Wait():
 		}
-
 	}
 }
 
@@ -88,6 +87,6 @@ func (r *reader) Close() (err error) {
 		return err
 	}
 
-	r.b.wg.Done()
+	r.s.wg.Done()
 	return nil
 }

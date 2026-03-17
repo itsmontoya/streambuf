@@ -2,58 +2,42 @@ package streambuf
 
 import (
 	"context"
-	"io"
-	"sync"
 )
 
 // New constructs a new file Buffer.
 func New(filepath string) (out *Buffer, err error) {
-	var b backend
-	if b, err = newFile(filepath); err != nil {
-		return nil, err
+	var w writable
+	if w, err = newWritableFile(filepath); err != nil {
+		return
 	}
 
-	return newWithBackend(b), nil
-}
-
-// NewReadOnly constructs a new read-only file Buffer.
-func NewReadOnly(filepath string) (out *Buffer, err error) {
-	var b backend
-	if b, err = newReadOnlyFile(filepath); err != nil {
-		return nil, err
+	var r readable
+	if r, err = newReadableFile(filepath); err != nil {
+		return
 	}
 
-	return newWithBackend(b), nil
+	return newWithBackend(w, r), nil
 }
 
 // NewMemory constructs a new in-memory Buffer.
 func NewMemory() (out *Buffer) {
-	b := newMemory()
-	return newWithBackend(b)
+	w := newWritableMemory(nil)
+	r := newReadableMemory(w.m)
+	return newWithBackend(w, r)
 }
 
-// NewReadOnlyMemory constructs a new read-only in-memory Buffer backed by bs.
-func NewReadOnlyMemory(bs []byte) (out *Buffer) {
-	b := newReadOnlyMemory(bs)
-	return newWithBackend(b)
-}
-
-func newWithBackend(be backend) (out *Buffer) {
+func newWithBackend(w writable, r readable) (out *Buffer) {
 	var b Buffer
-	b.b = be
-	b.waiter = newWaiter()
+	b.w = w
+	b.stream = newStreamWithReadable(r)
 	return &b
 }
 
 // Buffer is a thread-safe byte buffer with reader support.
 type Buffer struct {
-	mux sync.RWMutex
-	b   backend
-	wg  sync.WaitGroup
+	*stream
 
-	waiter *waiter
-
-	closed bool
+	w writable
 }
 
 // Write appends bytes to the buffer and wakes waiting readers.
@@ -61,7 +45,7 @@ type Buffer struct {
 func (b *Buffer) Write(bs []byte) (n int, err error) {
 	b.mux.RLock()
 	defer b.mux.RUnlock()
-	if n, err = b.b.Write(bs); err != nil {
+	if n, err = b.w.Write(bs); err != nil {
 		return n, err
 	}
 
@@ -70,20 +54,6 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 	}
 
 	return n, err
-}
-
-// Reader returns a new io.ReadSeekCloser that streams data from the buffer.
-// Each reader tracks its own read offset and supports seeking relative to
-// the start or current position. It returns ErrIsClosed if the buffer is closed.
-func (b *Buffer) Reader() (r io.ReadSeekCloser, err error) {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.closed {
-		return nil, ErrIsClosed
-	}
-
-	b.wg.Add(1)
-	return newReader(b), nil
 }
 
 // Close closes the writer side of the buffer and signals waiting readers.
@@ -108,7 +78,7 @@ func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 
 	b.closed = true
 
-	if err = b.b.CloseWriter(); err != nil {
+	if err = b.w.Close(); err != nil {
 		return err
 	}
 
@@ -118,22 +88,5 @@ func (b *Buffer) CloseAndWait(ctx context.Context) (err error) {
 
 	b.waitUntilDone(ctx)
 
-	return b.b.CloseReader()
-}
-
-func (b *Buffer) waitUntilDone(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-	case <-b.waitForReaders():
-	}
-}
-
-func (b *Buffer) waitForReaders() (out <-chan struct{}) {
-	done := make(chan struct{}, 1)
-	go func() {
-		b.wg.Wait()
-		done <- struct{}{}
-	}()
-
-	return done
+	return b.r.Close()
 }
