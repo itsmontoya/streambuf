@@ -18,6 +18,14 @@ func NewStream(filepath string) (out *Stream, err error) {
 	return &s, nil
 }
 
+// NewReadOnly constructs a new read-only file Stream.
+func NewMemoryStream(bs *[]byte) (out *Stream) {
+	var s Stream
+	r := newReadableMemory(bs)
+	s.stream = newStreamWithReadable(r)
+	return &s
+}
+
 type Stream struct {
 	*stream
 }

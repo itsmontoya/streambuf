@@ -669,20 +669,8 @@ func Test_Stream_CloseAndWait_underlying_reader_closed(t *testing.T) {
 	}
 }
 
-type testReadOnlyMemoryReadable struct {
-	*readOnlyMemory
-}
-
-func (r *testReadOnlyMemoryReadable) Close() (err error) {
-	return r.CloseReader()
-}
-
 func newTestMemoryStream(in []byte) (out *Stream) {
-	var s Stream
-	s.stream = newStreamWithReadable(&testReadOnlyMemoryReadable{
-		readOnlyMemory: newReadOnlyMemory(append([]byte(nil), in...)),
-	})
-	return &s
+	return NewMemoryStream(&in)
 }
 
 func newTestFileStream(t *testing.T, prefix string, in []byte) (out *Stream, err error) {
