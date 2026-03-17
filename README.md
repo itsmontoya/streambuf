@@ -51,13 +51,12 @@ func ExampleNew() {
 }
 ```
 
-### NewReadOnly
+### NewStream
 ```go
-func ExampleNewReadOnly() {
+func ExampleNewStream() {
 	var err error
-	// NewReadOnly constructs a read-only file-backed buffer.
-	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
-	if exampleBuffer, err = NewReadOnly("path/to/file"); err != nil {
+	// NewStream constructs a read-only file-backed stream.
+	if exampleStream, err = NewStream("path/to/file"); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -67,15 +66,6 @@ func ExampleNewReadOnly() {
 ```go
 func ExampleNewMemory() {
 	exampleBuffer = NewMemory()
-}
-```
-
-### NewReadOnlyMemory
-```go
-func ExampleNewReadOnlyMemory() {
-	// NewReadOnlyMemory constructs a read-only memory-backed buffer.
-	// Calls to Write on this buffer return ErrCannotWriteToReadOnly.
-	exampleBuffer = NewReadOnlyMemory([]byte("hello world"))
 }
 ```
 
@@ -143,6 +133,57 @@ func ExampleBuffer_CloseAndWait() {
 }
 ```
 
+### Stream.Reader
+```go
+func ExampleStream_Reader() {
+	var (
+		r1  io.ReadSeekCloser
+		r2  io.ReadSeekCloser
+		r3  io.ReadSeekCloser
+		err error
+	)
+
+	if r1, err = exampleStream.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r1.Close()
+
+	if r2, err = exampleStream.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r2.Close()
+
+	if r3, err = exampleStream.Reader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r3.Close()
+
+	// Each reader is independent and maintains its own read offset.
+	// Reads or seeks on r1 do not affect r2 or r3.
+}
+```
+
+### Stream.Close
+```go
+func ExampleStream_Close() {
+	// Close closes the readable backend immediately and does not wait for readers.
+	if err := exampleStream.Close(); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+### Stream.CloseAndWait
+```go
+func ExampleStream_CloseAndWait() {
+	// CloseAndWait blocks until the readable backend is closed and all readers are
+	// closed, or until the provided context is done.
+	if err := exampleStream.CloseAndWait(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 ## Core Concepts
 
 ### Append-only buffer
@@ -165,12 +206,11 @@ Readers may:
 
 Readers block when no data is available and resume automatically when new data is appended.
 
-For read-only buffers (`NewReadOnly`, `NewReadOnlyMemory`), this means reaching the
-current end of the preloaded data/file will also block until the buffer is closed
-or the reader is closed.
+For streams (`NewStream`), this means reaching the current end of the readable
+file will also block until the stream is closed or the reader is closed.
 
-If you are treating a read-only buffer as a finite snapshot, call `Close()` (or
-`CloseAndWait(...)`) on the buffer after readers finish consuming data, or close
+If you are treating a stream as a finite snapshot, call `Close()` (or
+`CloseAndWait(...)`) on the stream after readers finish consuming data, or close
 the reader directly, to unblock waiting reads and complete shutdown cleanly.
 
 ### Shutdown behavior
@@ -188,10 +228,10 @@ the reader directly, to unblock waiting reads and complete shutdown cleanly.
 
 - **Memory-backed** (`[]byte`)
 - **File-backed** (using a shared file descriptor)
-- **Read-only memory-backed** (preloaded `[]byte`)
-- **Read-only file-backed** (existing file opened read-only)
+- **Read-only file-backed stream** (existing file opened read-only)
 
-Both implementations expose the same behavior and API.
+`Buffer` and `Stream` share the same reader behavior. `Buffer` adds `Write`,
+while `Stream` is read-only.
 
 ## AI Usage and Authorship
 
