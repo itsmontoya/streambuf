@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// NewReadOnly constructs a new read-only file Stream.
+// NewStream constructs a read-only file-backed Stream.
 func NewStream(filepath string) (out *Stream, err error) {
 	var r readable
 	if r, err = newReadableFile(filepath); err != nil {
@@ -18,7 +18,7 @@ func NewStream(filepath string) (out *Stream, err error) {
 	return &s, nil
 }
 
-// NewReadOnly constructs a new read-only file Stream.
+// NewMemoryStream constructs a read-only memory-backed Stream over bs.
 func NewMemoryStream(bs *[]byte) (out *Stream) {
 	var s Stream
 	r := newReadableMemory(bs)
@@ -26,6 +26,7 @@ func NewMemoryStream(bs *[]byte) (out *Stream) {
 	return &s
 }
 
+// Stream is a thread-safe read-only stream with reader support.
 type Stream struct {
 	*stream
 }
@@ -37,7 +38,7 @@ func newStreamWithReadable(r readable) (out *stream) {
 	return &s
 }
 
-// Stream is a thread-safe byte buffer with reader support.
+// stream contains the shared reader and lifecycle behavior used by Buffer and Stream.
 type stream struct {
 	mux sync.RWMutex
 	wg  sync.WaitGroup
@@ -48,9 +49,9 @@ type stream struct {
 	closed bool
 }
 
-// Reader returns a new io.ReadSeekCloser that streams data from the buffer.
+// Reader returns a new io.ReadSeekCloser that streams data from the stream.
 // Each reader tracks its own read offset and supports seeking relative to
-// the start or current position. It returns ErrIsClosed if the buffer is closed.
+// the start or current position. It returns ErrIsClosed if the stream is closed.
 func (s *stream) Reader() (r io.ReadSeekCloser, err error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -62,18 +63,18 @@ func (s *stream) Reader() (r io.ReadSeekCloser, err error) {
 	return newReader(s), nil
 }
 
-// Close closes the writer side of the buffer and signals waiting readers.
+// Close closes the stream and signals waiting readers.
 // It does not wait for readers to call Close.
 func (s *stream) Close() (err error) {
 	return s.CloseAndWait(expiredContext)
 }
 
-// CloseAndWait closes the writer side of the buffer and signals waiting readers.
+// CloseAndWait closes the stream and signals waiting readers.
 // It waits for readers to close until ctx is canceled.
-// Once called, future Reader and Write calls return ErrIsClosed.
+// Once called, future Reader calls return ErrIsClosed.
 // ctx must be non-nil.
 // If ctx is canceled before readers close, this call still returns and the
-// buffer remains closed; readers should still be closed to complete internal
+// stream remains closed; readers should still be closed to complete internal
 // wait cleanup.
 func (s *stream) CloseAndWait(ctx context.Context) (err error) {
 	s.mux.Lock()

@@ -1,5 +1,6 @@
-// Package streambuf provides a concurrent buffer with independent readers that
-// can block until more data is written or the buffer is closed.
+// Package streambuf provides append-only buffers and read-only streams with
+// independent readers that can block until more data is available or the
+// instance is closed.
 package streambuf
 
 import (

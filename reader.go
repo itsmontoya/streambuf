@@ -7,7 +7,7 @@ import (
 
 var _ io.ReadSeekCloser = &reader{}
 
-// newReader constructs a reader bound to a Buffer.
+// newReader constructs a reader bound to a shared stream.
 func newReader(s *stream) (out *reader) {
 	var r reader
 	r.s = s
@@ -15,7 +15,7 @@ func newReader(s *stream) (out *reader) {
 	return &r
 }
 
-// reader streams bytes from a Buffer while tracking read position.
+// reader streams bytes while tracking its own read position.
 type reader struct {
 	s *stream
 
@@ -25,9 +25,9 @@ type reader struct {
 }
 
 // Read copies available bytes into in and blocks until data is written,
-// the buffer is closed, or the reader is closed.
+// the stream is closed, or the reader is closed.
 // A zero-length read returns (0, nil) immediately.
-// When no bytes are read, it returns ErrIsClosed after either the buffer
+// When no bytes are read, it returns ErrIsClosed after either the stream
 // closes or the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
 	if len(in) == 0 {

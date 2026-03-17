@@ -8,7 +8,7 @@ import (
 
 var _ readable = &readableFile{}
 
-// newFile constructs a file backend with separate read and append handles.
+// newReadableFile constructs a readable file backend for an existing file path.
 func newReadableFile(filepath string) (out *readableFile, err error) {
 	var f readableFile
 	if f.f, err = os.Open(filepath); err != nil {
@@ -18,7 +18,7 @@ func newReadableFile(filepath string) (out *readableFile, err error) {
 	return &f, nil
 }
 
-// file is a backend backed by separate file handles for reading and writing.
+// readableFile is a read-only backend backed by a file handle.
 type readableFile struct {
 	mux sync.RWMutex
 
@@ -28,7 +28,7 @@ type readableFile struct {
 }
 
 // ReadAt copies bytes from index into in.
-// It returns ErrIsClosed when no bytes are read and the writer has been closed.
+// It returns ErrIsClosed when no bytes are read and the readable file is closed.
 func (f *readableFile) ReadAt(in []byte, index int64) (n int, err error) {
 	f.mux.RLock()
 	defer f.mux.RUnlock()
@@ -43,7 +43,7 @@ func (f *readableFile) ReadAt(in []byte, index int64) (n int, err error) {
 	}
 }
 
-// CloseReader marks the file backend reader as closed and closes its file handle.
+// Close marks the readable file as closed and closes its file handle.
 func (f *readableFile) Close() (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()

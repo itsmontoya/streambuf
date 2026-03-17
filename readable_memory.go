@@ -7,14 +7,14 @@ import (
 
 var _ readable = &readableMemory{}
 
-// newMemory constructs the in-readableMemory backend used by Buffer.
+// newReadableMemory constructs the readable memory backend used by Buffer and Stream.
 func newReadableMemory(bs *[]byte) (out *readableMemory) {
 	var m readableMemory
 	m.bs = bs
 	return &m
 }
 
-// readableMemory is the backend that stores bytes and close state.
+// readableMemory is a readable memory backend that shares an underlying byte slice.
 type readableMemory struct {
 	mux sync.RWMutex
 
@@ -24,7 +24,7 @@ type readableMemory struct {
 }
 
 // ReadAt copies bytes from index into in.
-// It returns ErrIsClosed when no bytes are available and the writer is closed.
+// It returns ErrIsClosed when no bytes are available and the readable memory is closed.
 func (m *readableMemory) ReadAt(in []byte, index int64) (n int, err error) {
 	m.mux.RLock()
 	defer m.mux.RUnlock()
@@ -39,7 +39,7 @@ func (m *readableMemory) ReadAt(in []byte, index int64) (n int, err error) {
 	}
 }
 
-// CloseReader marks the readableMemory backend reader as closed and releases readableMemory.
+// Close marks the readable memory backend as closed.
 func (m *readableMemory) Close() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()

@@ -6,7 +6,7 @@ import (
 
 var _ writable = &writableMemory{}
 
-// newWritableMemory constructs the in-writableMemory backend used by Buffer.
+// newWritableMemory constructs the writable memory backend used by Buffer.
 func newWritableMemory(bs []byte) (out *writableMemory) {
 	var m writableMemory
 	if bs == nil {
@@ -17,7 +17,7 @@ func newWritableMemory(bs []byte) (out *writableMemory) {
 	return &m
 }
 
-// writableMemory is the backend that stores bytes and close state.
+// writableMemory is a writable memory backend that stores bytes and close state.
 type writableMemory struct {
 	mux sync.RWMutex
 
@@ -38,7 +38,7 @@ func (m *writableMemory) Write(bs []byte) (n int, err error) {
 	return len(bs), nil
 }
 
-// CloseReader marks the writableMemory backend reader as closed and releases writableMemory.
+// Close marks the writable memory backend as closed and releases its byte slice.
 func (m *writableMemory) Close() (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()

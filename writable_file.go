@@ -8,7 +8,7 @@ import (
 
 var _ writable = &writableFile{}
 
-// newFile constructs a file backend with separate read and append handles.
+// newWritableFile constructs a writable file backend for append-only writes.
 func newWritableFile(filepath string) (out *writableFile, err error) {
 	var f writableFile
 	if f.f, err = os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644); err != nil {
@@ -18,7 +18,7 @@ func newWritableFile(filepath string) (out *writableFile, err error) {
 	return &f, nil
 }
 
-// file is a backend backed by separate file handles for reading and writing.
+// writableFile is a write-only backend backed by a file handle.
 type writableFile struct {
 	mux sync.RWMutex
 
@@ -38,7 +38,7 @@ func (f *writableFile) Write(bs []byte) (n int, err error) {
 	return f.f.Write(bs)
 }
 
-// CloseWriter marks the file backend writer as closed and closes its file handle.
+// Close marks the writable file as closed and closes its file handle.
 func (f *writableFile) Close() (err error) {
 	f.mux.Lock()
 	defer f.mux.Unlock()
