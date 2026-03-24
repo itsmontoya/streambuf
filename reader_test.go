@@ -81,7 +81,7 @@ func Test_reader_Read(t *testing.T) {
 
 			b.Write(testInput)
 
-			r := newReader(b.stream)
+			r := newReader(b.stream, true)
 			bs := make([]byte, len(testInput))
 			gotN, gotErr := r.Read(bs)
 			if !isEqualErrors(gotErr, tt.wantErr) {
@@ -115,7 +115,7 @@ func Test_reader_Read_zero_length_input(t *testing.T) {
 	// Zero-length reads return before interacting with the backend, so this
 	// behavior is backend-independent and only needs one simple backend setup.
 	b = NewMemory()
-	r = newReader(b.stream)
+	r = newReader(b.stream, true)
 	bs = make([]byte, 0)
 	gotN, gotErr = r.Read(bs)
 
@@ -197,7 +197,7 @@ func Test_reader_Read_closed_reader_while_waiting(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, true)
 			b.wg.Add(1)
 
 			bs = make([]byte, 1)
@@ -291,7 +291,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 
 			b.Write(testInput)
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, true)
 			bs = make([]byte, len(testInput))
 			gotN, gotErr = r.Read(bs)
 			if gotErr != nil {
@@ -428,7 +428,7 @@ func Test_reader_Read_no_bytes_available_not_closed(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, true)
 			bs = make([]byte, len(testInput))
 			results = make(chan readResult, 1)
 
@@ -580,7 +580,7 @@ func Test_reader_Seek(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, true)
 			if tt.setup != nil {
 				tt.setup(t, r)
 			}
@@ -674,7 +674,7 @@ func Test_reader_Close(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, true)
 			b.wg.Add(1)
 
 			if tt.setup != nil {

@@ -3,10 +3,10 @@ package streambuf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"testing"
-	"time"
 )
 
 func Test_NewStream_invalid_filepath(t *testing.T) {
@@ -228,17 +228,10 @@ func Test_Stream_Reader_no_more_bytes_and_stream_closed(t *testing.T) {
 }
 
 func Test_Stream_Reader_no_bytes_available_not_closed(t *testing.T) {
-	type readResult struct {
-		n   int
-		err error
-	}
-
 	type testcase struct {
 		name string // description of this test case
 
 		init func(t *testing.T) (s *Stream, err error)
-
-		wantErr error
 	}
 
 	tests := []testcase{
@@ -248,7 +241,6 @@ func Test_Stream_Reader_no_bytes_available_not_closed(t *testing.T) {
 				t.Helper()
 				return NewMemoryStream(nil), nil
 			},
-			wantErr: ErrIsClosed,
 		},
 		{
 			name: "empty file stream",
@@ -256,19 +248,18 @@ func Test_Stream_Reader_no_bytes_available_not_closed(t *testing.T) {
 				t.Helper()
 				return newTestFileStream(t, "stream-reader-wait-*", nil)
 			},
-			wantErr: ErrIsClosed,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
-				s       *Stream
-				err     error
-				r       io.ReadSeekCloser
-				bs      []byte
-				results chan readResult
-				got     readResult
+				s      *Stream
+				err    error
+				r      io.ReadSeekCloser
+				bs     []byte
+				gotN   int
+				gotErr error
 			)
 
 			if s, err = tt.init(t); err != nil {
@@ -284,36 +275,13 @@ func Test_Stream_Reader_no_bytes_available_not_closed(t *testing.T) {
 			})
 
 			bs = make([]byte, 1)
-			results = make(chan readResult, 1)
-
-			go func() {
-				var out readResult
-				out.n, out.err = r.Read(bs)
-				results <- out
-			}()
-
-			select {
-			case got = <-results:
-				t.Fatalf("Read() returned before stream close, n=<%v> err=<%v>", got.n, got.err)
-			case <-time.After(25 * time.Millisecond):
+			gotN, gotErr = r.Read(bs)
+			if !errors.Is(gotErr, io.EOF) {
+				t.Fatalf("Read() invalid error when no bytes are available, expected error wrapping <%v> and received <%v>", io.EOF, gotErr)
 			}
 
-			if err = s.Close(); err != nil {
-				t.Fatalf("Close() unexpected error: %v", err)
-			}
-
-			select {
-			case got = <-results:
-			case <-time.After(1 * time.Second):
-				t.Fatal("Read() did not unblock after stream close")
-			}
-
-			if !isEqualErrors(got.err, tt.wantErr) {
-				t.Fatalf("Read() invalid error after stream close, expected <%v> and received <%v>", tt.wantErr, got.err)
-			}
-
-			if got.n != 0 {
-				t.Fatalf("Read() invalid n after stream close, expected <0> and received <%v>", got.n)
+			if gotN != 0 {
+				t.Fatalf("Read() invalid n when no bytes are available, expected <0> and received <%v>", gotN)
 			}
 		})
 	}
