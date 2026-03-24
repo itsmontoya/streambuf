@@ -1,6 +1,8 @@
 // Package streambuf provides append-only buffers and read-only streams with
-// independent readers that can block until more data is available or the
-// instance is closed.
+// independent readers that track their own offsets.
+//
+// Reader returns EOF when the current end is reached. Buffer also provides
+// StreamingReader for reader behavior that waits for future writes.
 package streambuf
 
 import (
