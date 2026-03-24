@@ -2,6 +2,7 @@ package streambuf
 
 import (
 	"context"
+	"io"
 )
 
 // New constructs a new file Buffer.
@@ -56,6 +57,18 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 	return n, err
 }
 
+// StreamingReader returns a new io.ReadSeekCloser that tracks its own read offset,
+// supports seeking relative to the start or current position, and waits for
+// future writes when the current end is reached.
+// It returns ErrIsClosed if the buffer is closed.
+func (b *Buffer) StreamingReader() (r io.ReadSeekCloser, err error) {
+	if err = b.checkoutReader(); err != nil {
+		return
+	}
+
+	return newReader(b.stream, true), nil
+}
+
 // Close closes the writer side of the buffer and signals waiting readers.
 // It does not wait for readers to call Close.
 func (b *Buffer) Close() (err error) {
@@ -64,7 +77,7 @@ func (b *Buffer) Close() (err error) {
 
 // CloseAndWait closes the writer side of the buffer and signals waiting readers.
 // It waits for readers to close until ctx is canceled.
-// Once called, future Reader and Write calls return ErrIsClosed.
+// Once called, future Reader, StreamingReader, and Write calls return ErrIsClosed.
 // ctx must be non-nil.
 // If ctx is canceled before readers close, this call still returns and the
 // buffer remains closed; readers should still be closed to complete internal
