@@ -8,9 +8,10 @@ import (
 var _ io.ReadSeekCloser = &reader{}
 
 // newReader constructs a reader bound to a shared stream.
-func newReader(s *stream) (out *reader) {
+func newReader(s *stream, tail bool) (out *reader) {
 	var r reader
 	r.s = s
+	r.tail = tail
 	r.closer = newWaiter()
 	return &r
 }
@@ -20,12 +21,15 @@ type reader struct {
 	s *stream
 
 	index int64
+	tail  bool
 
 	closer *waiter
 }
 
-// Read copies available bytes into in and blocks until data is written,
-// the stream is closed, or the reader is closed.
+// Read copies available bytes into in.
+// Tail readers block until data is written, the stream is closed, or the
+// reader is closed when no bytes are currently available.
+// Non-tail readers return EOF when the current end is reached.
 // A zero-length read returns (0, nil) immediately.
 // When no bytes are read, it returns ErrIsClosed after either the stream
 // closes or the reader closes.
@@ -41,7 +45,7 @@ func (r *reader) Read(in []byte) (n int, err error) {
 			r.index += int64(n)
 			return n, err
 		case err == nil:
-		case errors.Is(err, io.EOF):
+		case errors.Is(err, io.EOF) && r.tail:
 
 		default:
 			return 0, err
