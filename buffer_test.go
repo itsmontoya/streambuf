@@ -3,9 +3,11 @@ package streambuf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func Test_New_invalid_filepath(t *testing.T) {
@@ -196,7 +198,7 @@ func Test_Buffer_Write(t *testing.T) {
 				t.Fatalf("Write() invalid n, expected <%v> and received <%v>", len(testInput), gotN)
 			}
 
-			r = newReader(b.stream)
+			r = newReader(b.stream, false)
 			bs = make([]byte, len(testInput))
 			gotN, gotErr = r.Read(bs)
 			if gotErr != nil {
@@ -423,6 +425,218 @@ func Test_Buffer_Reader(t *testing.T) {
 				t.Fatalf("Read() invalid read value from Reader(), expected <%v> and received <%v>", string(testInput), string(bs))
 			}
 		})
+	}
+}
+
+func Test_Buffer_Reader_no_bytes_available_not_closed(t *testing.T) {
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+	}
+
+	tests := []testcase{
+		{
+			name: "empty memory buffer",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+		},
+		{
+			name: "empty file buffer",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-reader-eof-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b      *Buffer
+				err    error
+				r      io.ReadSeekCloser
+				bs     []byte
+				gotN   int
+				gotErr error
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Cleanup(func() {
+				_ = b.Close()
+			})
+
+			if r, err = b.Reader(); err != nil {
+				t.Fatalf("Reader() unexpected error: %v", err)
+			}
+
+			t.Cleanup(func() {
+				_ = r.Close()
+			})
+
+			bs = make([]byte, 1)
+			gotN, gotErr = r.Read(bs)
+			if !errors.Is(gotErr, io.EOF) {
+				t.Fatalf("Read() invalid error when no bytes are available, expected error wrapping <%v> and received <%v>", io.EOF, gotErr)
+			}
+
+			if gotN != 0 {
+				t.Fatalf("Read() invalid n when no bytes are available, expected <0> and received <%v>", gotN)
+			}
+		})
+	}
+}
+
+func Test_Buffer_StreamingReader_no_bytes_available_not_closed(t *testing.T) {
+	type readResult struct {
+		n   int
+		err error
+	}
+
+	type testcase struct {
+		name string // description of this test case
+
+		init func(t *testing.T) (b *Buffer, err error)
+	}
+
+	tests := []testcase{
+		{
+			name: "memory",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				t.Helper()
+				return NewMemory(), nil
+			},
+		},
+		{
+			name: "file",
+			init: func(t *testing.T) (b *Buffer, err error) {
+				var f *os.File
+
+				t.Helper()
+
+				if f, err = os.CreateTemp(t.TempDir(), "buffer-streaming-reader-*"); err != nil {
+					return nil, err
+				}
+
+				if err = f.Close(); err != nil {
+					return nil, err
+				}
+
+				if b, err = New(f.Name()); err != nil {
+					return nil, err
+				}
+
+				return b, nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				b       *Buffer
+				err     error
+				r       io.ReadSeekCloser
+				bs      []byte
+				results chan readResult
+				got     readResult
+			)
+
+			if b, err = tt.init(t); err != nil {
+				t.Fatal(err)
+			}
+
+			t.Cleanup(func() {
+				_ = b.Close()
+			})
+
+			if r, err = b.StreamingReader(); err != nil {
+				t.Fatalf("StreamingReader() unexpected error: %v", err)
+			}
+
+			t.Cleanup(func() {
+				_ = r.Close()
+			})
+
+			bs = make([]byte, 1)
+			results = make(chan readResult, 1)
+
+			go func() {
+				var out readResult
+				out.n, out.err = r.Read(bs)
+				results <- out
+			}()
+
+			select {
+			case got = <-results:
+				t.Fatalf("Read() returned before write, n=<%v> err=<%v>", got.n, got.err)
+			case <-time.After(25 * time.Millisecond):
+			}
+
+			if _, err = b.Write([]byte("a")); err != nil {
+				t.Fatalf("Write() unexpected error: %v", err)
+			}
+
+			select {
+			case got = <-results:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Read() did not unblock after write")
+			}
+
+			if got.err != nil {
+				t.Fatalf("Read() unexpected error after write: %v", got.err)
+			}
+
+			if got.n != 1 {
+				t.Fatalf("Read() invalid n after write, expected <1> and received <%v>", got.n)
+			}
+
+			if bs[0] != 'a' {
+				t.Fatalf("Read() invalid byte after write, expected <a> and received <%c>", bs[0])
+			}
+		})
+	}
+}
+
+func Test_Buffer_StreamingReader_closed_buffer(t *testing.T) {
+	var (
+		b   *Buffer
+		err error
+		r   io.ReadSeekCloser
+	)
+
+	b = NewMemory()
+	if err = b.Close(); err != nil {
+		t.Fatalf("setup Close() unexpected error: %v", err)
+	}
+
+	r, err = b.StreamingReader()
+	if !isEqualErrors(err, ErrIsClosed) {
+		t.Fatalf("StreamingReader() invalid error, expected <%v> and received <%v>", ErrIsClosed, err)
+	}
+
+	if r != nil {
+		t.Fatalf("StreamingReader() expected nil reader on error, received <%T>", r)
 	}
 }
 

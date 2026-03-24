@@ -16,7 +16,7 @@ It allows a single writer to continuously append bytes to a buffer, while any nu
 
 The buffer can be backed by memory or by a file, making it suitable for both lightweight in-memory streaming and durable, disk-backed use cases.
 
-In practice, this is useful when you want more than "a mutex around an `io.Writer`". A plain writer gives you serialized writes, but it does not give each consumer its own read cursor, late-joining readers, coordinated blocking reads, or a shared file-backed stream that avoids opening separate descriptors per reader.
+In practice, this is useful when you want more than "a mutex around an `io.Writer`". A plain writer gives you serialized writes, but it does not give each consumer its own read cursor, late-joining readers, optional follow-style blocking reads, or a shared file-backed stream that avoids opening separate descriptors per reader.
 
 ## Motivation
 
@@ -49,7 +49,7 @@ A mutex around a writer helps multiple goroutines write safely, but it does not 
 
 - Independent readers with their own offsets
 - Readers that can join after data has already been written
-- Reads that block until more data arrives
+- Optional reads that block until more data arrives
 - A single shared file-backed source for many readers
 
 `streambuf` is for cases where one side is continuously appending data and many readers need to observe the same ordered byte stream without consuming it from each other.
@@ -62,7 +62,7 @@ Imagine a service that receives a live byte stream from one upstream connection 
 - One consumer writes it to disk for later replay
 - One consumer parses it for metrics or events
 
-With a normal `io.Writer`, you still need to build the fan-out, track read positions, and coordinate blocking behavior yourself.
+With a normal `io.Writer`, you still need to build the fan-out, track read positions, and coordinate EOF-vs-follow reader behavior yourself.
 
 With `streambuf`, the producer writes once, each consumer gets its own reader, and a file-backed buffer can keep everything on a single shared file descriptor instead of opening one per consumer.
 
@@ -146,6 +146,25 @@ func ExampleBuffer_Reader() {
 
 	// Each reader is independent and maintains its own read offset.
 	// Reads or seeks on r1 do not affect r2 or r3.
+	// Reader returns EOF when the current end is reached.
+}
+```
+
+### Buffer.StreamingReader
+```go
+func ExampleBuffer_StreamingReader() {
+	var (
+		r   io.ReadSeekCloser
+		err error
+	)
+
+	if r, err = exampleBuffer.StreamingReader(); err != nil {
+		log.Fatal(err)
+	}
+	defer r.Close()
+
+	// StreamingReader waits for future writes when no bytes are currently
+	// available at the reader offset.
 }
 ```
 
@@ -197,6 +216,7 @@ func ExampleStream_Reader() {
 
 	// Each reader is independent and maintains its own read offset.
 	// Reads or seeks on r1 do not affect r2 or r3.
+	// Reader returns EOF when the current end is reached.
 }
 ```
 
@@ -239,23 +259,20 @@ Readers may:
 - Start from the current end
 - Join after data has already been written
 
-### Blocking reads
+### Reader modes
 
-Readers block when no data is available and resume automatically when new data is appended.
+- `Reader()` returns EOF when the current end is reached.
+- `StreamingReader()` (Buffer only) waits for future writes when the current end is reached.
 
-For streams (`NewStream`), this means reaching the current end of the readable
-file will also block until the stream is closed or the reader is closed.
-
-If you are treating a stream as a finite snapshot, call `Close()` (or
-`CloseAndWait(...)`) on the stream after readers finish consuming data, or close
-the reader directly, to unblock waiting reads and complete shutdown cleanly.
+Use `Reader()` for finite/snapshot-style consumption and `StreamingReader()` for follow/tail-style consumption.
 
 ### Shutdown behavior
 
 - `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
 - `CloseAndWait(ctx)` closes writes and waits for readers until `ctx` is canceled.
 - `ctx` can be a timeout/deadline context to bound how long shutdown waits.
-- Terminal reads after either buffer close or reader close return `ErrIsClosed`.
+- For `StreamingReader()`, terminal reads after buffer close or reader close return `ErrIsClosed`.
+- For `Reader()`, reaching the current end returns EOF.
 - To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and context cancellation).
 - If `ctx` is canceled before readers close, `CloseAndWait` still returns and the buffer stays closed; close outstanding readers afterward to finish internal wait cleanup.
 
@@ -267,8 +284,8 @@ the reader directly, to unblock waiting reads and complete shutdown cleanly.
 - **File-backed** (using a shared file descriptor)
 - **Read-only file-backed stream** (existing file opened read-only)
 
-`Buffer` and `Stream` share the same reader behavior. `Buffer` adds `Write`,
-while `Stream` is read-only.
+`Buffer` and `Stream` both expose `Reader()` with EOF-at-end semantics. `Buffer`
+adds `Write` and `StreamingReader()` for follow-style reads, while `Stream` is read-only.
 
 ## AI Usage and Authorship
 
