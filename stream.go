@@ -49,18 +49,16 @@ type stream struct {
 	closed bool
 }
 
-// Reader returns a new io.ReadSeekCloser that streams data from the stream.
-// Each reader tracks its own read offset and supports seeking relative to
-// the start or current position. It returns ErrIsClosed if the stream is closed.
+// Reader returns a new io.ReadSeekCloser that tracks its own read offset and
+// supports seeking relative to the start or current position.
+// When the reader reaches the current end, Read returns EOF instead of waiting
+// for future bytes. It returns ErrIsClosed if the stream is closed.
 func (s *stream) Reader() (r io.ReadSeekCloser, err error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
-	if s.closed {
-		return nil, ErrIsClosed
+	if err = s.checkoutReader(); err != nil {
+		return
 	}
 
-	s.wg.Add(1)
-	return newReader(s), nil
+	return newReader(s, false), nil
 }
 
 // Close closes the stream and signals waiting readers.
@@ -94,6 +92,17 @@ func (s *stream) CloseAndWait(ctx context.Context) (err error) {
 	}
 
 	s.waitUntilDone(ctx)
+	return nil
+}
+
+func (s *stream) checkoutReader() (err error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	if s.closed {
+		return ErrIsClosed
+	}
+
+	s.wg.Add(1)
 	return nil
 }
 
