@@ -122,3 +122,9 @@ func (s *stream) waitForReaders() (out <-chan struct{}) {
 
 	return done
 }
+
+func (s *stream) isClosed() (closed bool) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.closed
+}
