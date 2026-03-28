@@ -31,8 +31,8 @@ type reader struct {
 // reader is closed when no bytes are currently available.
 // Non-tail readers return EOF when the current end is reached.
 // A zero-length read returns (0, nil) immediately.
-// Tail readers return ErrIsClosed when no bytes are read after either the
-// stream closes or the reader closes.
+// Tail readers return EOF when no bytes are read after the stream closes.
+// Tail readers return ErrIsClosed when no bytes are read after the reader closes.
 func (r *reader) Read(in []byte) (n int, err error) {
 	if len(in) == 0 {
 		return 0, nil
