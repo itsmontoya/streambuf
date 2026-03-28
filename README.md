@@ -271,7 +271,8 @@ Use `Reader()` for finite/snapshot-style consumption and `StreamingReader()` for
 - `Close()` closes immediately. Existing unread bytes may no longer be available to readers.
 - `CloseAndWait(ctx)` closes writes and waits for readers until `ctx` is canceled.
 - `ctx` can be a timeout/deadline context to bound how long shutdown waits.
-- For `StreamingReader()`, terminal reads after buffer close or reader close return `ErrIsClosed`.
+- For `StreamingReader()`, terminal reads after buffer close return EOF.
+- For `StreamingReader()`, terminal reads after reader close return `ErrIsClosed`.
 - For `Reader()`, reaching the current end returns EOF.
 - To preserve reader drain behavior, finish reading first, then call `CloseAndWait` (or coordinate with reader `Close` calls and context cancellation).
 - If `ctx` is canceled before readers close, `CloseAndWait` still returns and the buffer stays closed; close outstanding readers afterward to finish internal wait cleanup.
