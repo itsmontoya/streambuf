@@ -242,7 +242,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 				t.Helper()
 				return NewMemory(), nil
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 		{
 			name: "file",
@@ -269,7 +269,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 
 				return b, nil
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 	}
 

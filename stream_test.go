@@ -160,7 +160,7 @@ func Test_Stream_Reader_no_more_bytes_and_stream_closed(t *testing.T) {
 				t.Helper()
 				return NewMemoryStream(testInput), nil
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 		{
 			name: "file with preloaded bytes",
@@ -168,7 +168,7 @@ func Test_Stream_Reader_no_more_bytes_and_stream_closed(t *testing.T) {
 				t.Helper()
 				return newTestFileStream(t, "stream-reader-eof-*", testInput)
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 	}
 
