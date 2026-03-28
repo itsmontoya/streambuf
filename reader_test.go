@@ -52,20 +52,6 @@ func Test_reader_Read(t *testing.T) {
 				return b, nil
 			},
 		},
-		{
-			name: "closed buffer before read",
-			init: func(t *testing.T) (b *Buffer, err error) {
-				t.Helper()
-
-				b = NewMemory()
-				if err = b.Close(); err != nil {
-					return nil, err
-				}
-
-				return b, nil
-			},
-			wantErr: ErrIsClosed,
-		},
 	}
 
 	for _, tt := range tests {
@@ -81,7 +67,12 @@ func Test_reader_Read(t *testing.T) {
 
 			b.Write(testInput)
 
-			r := newReader(b.stream, true)
+			var r io.ReadCloser
+			if r, err = b.StreamingReader(); err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close()
+
 			bs := make([]byte, len(testInput))
 			gotN, gotErr := r.Read(bs)
 			if !isEqualErrors(gotErr, tt.wantErr) {
@@ -242,7 +233,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 				t.Helper()
 				return NewMemory(), nil
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 		{
 			name: "file",
@@ -269,7 +260,7 @@ func Test_reader_Read_no_more_bytes_and_writer_closed(t *testing.T) {
 
 				return b, nil
 			},
-			wantErr: ErrIsClosed,
+			wantErr: io.EOF,
 		},
 	}
 
