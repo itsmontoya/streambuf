@@ -9,12 +9,12 @@ import (
 func New(filepath string) (out *Buffer, err error) {
 	var w writable
 	if w, err = newWritableFile(filepath); err != nil {
-		return
+		return nil, err
 	}
 
 	var r readable
 	if r, err = newReadableFile(filepath); err != nil {
-		return
+		return nil, err
 	}
 
 	return newWithBackend(w, r), nil
@@ -63,7 +63,7 @@ func (b *Buffer) Write(bs []byte) (n int, err error) {
 // It returns ErrIsClosed if the buffer is closed.
 func (b *Buffer) StreamingReader() (r io.ReadSeekCloser, err error) {
 	if err = b.checkoutReader(); err != nil {
-		return
+		return nil, err
 	}
 
 	return newReader(b.stream, true), nil

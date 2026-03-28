@@ -55,7 +55,7 @@ type stream struct {
 // for future bytes. It returns ErrIsClosed if the stream is closed.
 func (s *stream) Reader() (r io.ReadSeekCloser, err error) {
 	if err = s.checkoutReader(); err != nil {
-		return
+		return nil, err
 	}
 
 	return newReader(s, false), nil
@@ -84,7 +84,7 @@ func (s *stream) CloseAndWait(ctx context.Context) (err error) {
 	s.closed = true
 
 	if err = s.r.Close(); err != nil {
-		return
+		return err
 	}
 
 	if err = s.waiter.Close(); err != nil {
