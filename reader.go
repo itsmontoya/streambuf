@@ -45,6 +45,8 @@ func (r *reader) Read(in []byte) (n int, err error) {
 			r.index += int64(n)
 			return n, err
 		case err == nil:
+		case r.s.isClosed() && r.tail:
+			return n, io.EOF
 		case errors.Is(err, io.EOF) && r.tail:
 
 		default:
